@@ -14,14 +14,13 @@ body {
   background:
     radial-gradient(circle at 78% -15%, rgba(213, 191, 255, .12), transparent 28rem),
     #f7f2e9;
-  background-attachment: fixed;
 }
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0;
+  display: none;
   background-size: 42px 42px;
   mask-image: linear-gradient(to bottom, black, transparent 80%);
 }
@@ -37,6 +36,12 @@ button:not(:disabled), select:not(:disabled) { cursor: pointer; }
 ::selection { background: rgba(127,145,86,.25); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #c9beaf; border-radius: 999px; }
+
+/* Пропуска рисуването на Kanban карти извън видимата област. */
+article[draggable] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
+}
 
 @layer components {
   .panel { @apply rounded-xl border border-[#e4e3d9] bg-white; box-shadow: 0 3px 14px rgba(55,56,42,.035); }

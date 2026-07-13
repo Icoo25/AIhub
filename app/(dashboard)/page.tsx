@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Beaker, Bot, Heart, Newspaper, Plus, Radio, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { getExperiments, getKnowledgeItems, getNews, getTools } from "@/lib/data";
+import { getExperimentSummaries, getKnowledgeItems, getNews, getTools } from "@/lib/data";
 import type { AINews, AITool, Experiment, KnowledgeItem } from "@/lib/types";
 import { useAuthProfile } from "@/lib/auth-context";
 import { canContributeKnowledge } from "@/lib/permissions";
@@ -15,7 +15,7 @@ export default function Dashboard() {
   const [tools, setTools] = useState<AITool[]>([]), [news, setNews] = useState<AINews[]>([]), [experiments, setExperiments] = useState<Experiment[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState("");
-  useEffect(() => { Promise.all([getTools(), getNews(), getExperiments(), getKnowledgeItems()]).then(([t, n, e, k]) => { setTools(t); setNews(n); setExperiments(e); setKnowledge(k); }).catch(() => setError("Таблото не успя да зареди всички данни.")).finally(() => setLoading(false)); }, []);
+  useEffect(() => { Promise.all([getTools(), getNews(), getExperimentSummaries(), getKnowledgeItems()]).then(([t, n, e, k]) => { setTools(t); setNews(n); setExperiments(e); setKnowledge(k); }).catch(() => setError("Таблото не успя да зареди всички данни.")).finally(() => setLoading(false)); }, []);
   const stats = [
     { label: "ВХОДЯЩИ", value: knowledge.filter(item => item.status === "Входящи").length, icon: Radio, href: "/inbox" },
     { label: "ЗА ПРЕГЛЕД", value: knowledge.filter(item => item.status === "За преглед").length, icon: Sparkles, href: "/library" },
@@ -35,7 +35,7 @@ export default function Dashboard() {
     {error && <div className="rounded-xl border border-[#ffdad6] bg-[#fff4f2] p-3 text-xs text-[#ba1a1a]">{error}</div>}
     {loading && <div className="panel h-2 animate-pulse"/>}
     <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div><h1 className="text-3xl font-semibold tracking-[-.035em] text-[#1b1c16] sm:text-[38px]">{greeting}, {name}</h1><p className="mt-1.5 text-[12px] text-[#767869]">Актуален преглед на съдържанието във вашата AI лаборатория.</p></div>
+      <div><h1 className="text-3xl font-semibold tracking-[-.035em] text-[#1b1c16] sm:text-[38px]">{greeting}, {name}</h1><p className="mt-1.5 text-[12px] text-[#767869]">Актуален преглед на съдържанието във вашия AI Компас.</p></div>
       {canContributeKnowledge(role) && <div className="relative self-start sm:self-auto"><button onClick={() => setAddMenu(value => !value)} aria-expanded={addMenu} className="btn-primary"><Plus size={15}/> Добави съдържание</button>{addMenu && <div className="absolute right-0 top-12 z-20 w-60 rounded-xl border border-[#e4e3d9] bg-white p-2 shadow-xl">{[{href:"/inbox?new=1",label:"Бърз запис във Входящи"},{href:"/tools?new=1",label:"Нов AI инструмент"},{href:"/news?new=1",label:"Запис в инфо потока"},{href:"/experiments?new=1",label:"Нов експеримент"},{href:"/library?new=1",label:"Карта в AI библиотеката"}].map(item => <Link key={item.href} href={item.href} onClick={() => setAddMenu(false)} className="block rounded-lg px-3 py-2.5 text-sm text-[#46483b] hover:bg-[#f5f4ea]">{item.label}</Link>)}</div>}</div>}
     </section>
 
