@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Beaker, Bell, BookOpen, Bot, ChevronDown, FlaskConical, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Search, Settings, Users, X } from "lucide-react";
+import { Beaker, Bell, BookOpen, Bot, ChevronDown, Compass, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Search, Settings, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isDemo } from "@/lib/data";
@@ -62,7 +62,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     {mobile && <button aria-label="Затвори менюто" className="fixed inset-0 z-30 bg-[#1b1c16]/25 lg:hidden" onClick={() => setMobile(false)}/>} 
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col border-r border-[#e4e3d9] bg-[#f5f4ea] px-3 py-4 transition-transform lg:translate-x-0 ${mobile ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="mb-7 flex items-center justify-between px-2">
-        <Link href="/" className="flex items-center gap-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#52621c] text-white"><FlaskConical size={16}/></span><span><strong className="block text-[13px] font-semibold leading-none text-[#1b1c16]">AI Innovation</strong><span className="mt-1 block text-[8px] font-medium uppercase tracking-[.16em] text-[#767869]">Лаборатория за иновации</span></span></Link>
+        <Link href="/" className="flex items-center gap-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#52621c] text-white"><Compass size={17}/></span><span><strong className="block text-[13px] font-semibold leading-none text-[#1b1c16]">AI Компас</strong><span className="mt-1 block text-[8px] font-medium uppercase tracking-[.16em] text-[#767869]">Вътрешна AI платформа</span></span></Link>
         <button className="text-[#767869] lg:hidden" onClick={() => setMobile(false)}><X size={18}/></button>
       </div>
       <nav className="space-y-1">{visibleNavigation.map(item => { const active = path === item.href; const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={() => setMobile(false)} className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[12px] font-medium transition ${active ? "bg-[#e9edda] text-[#52621c]" : "text-[#46483b] hover:bg-[#efeee4]"}`}><Icon size={15}/><span>{item.label}</span>{active && <span className="absolute right-0 h-5 w-[2px] rounded-full bg-[#52621c]"/>}</Link>})}</nav>
