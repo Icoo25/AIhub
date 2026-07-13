@@ -2,19 +2,22 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, Beaker, Bell, BookOpen, Bot, ChevronDown, FlaskConical, LayoutDashboard, LogOut, Menu, Newspaper, Search, Settings, Upload, Users, X } from "lucide-react";
+import { Beaker, Bell, BookOpen, Bot, ChevronDown, FlaskConical, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Search, Settings, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isDemo } from "@/lib/data";
 import { AuthProvider, useAuthProfile } from "@/lib/auth-context";
 import { ConfirmationProvider } from "@/components/ui";
+import { canContributeKnowledge, canManageTeam, roleLabel } from "@/lib/permissions";
+import { CommandPalette } from "@/components/command-palette";
 
 const navigation = [
   { href: "/", label: "Общ преглед", icon: LayoutDashboard },
+  { href: "/inbox", label: "Входящи", icon: Inbox },
+  { href: "/library", label: "AI библиотека", icon: BookOpen },
   { href: "/tools", label: "AI инструменти", icon: Bot },
-  { href: "/news", label: "AI новини", icon: Newspaper },
+  { href: "/news", label: "Инфо поток", icon: Newspaper },
   { href: "/experiments", label: "Експерименти", icon: Beaker },
-  { href: "/library", label: "AI Библиотека", icon: BookOpen },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -27,9 +30,13 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
   const [globalQuery, setGlobalQuery] = useState("");
   const [accountMenu, setAccountMenu] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const profile = useAuthProfile();
-  const visibleNavigation = profile.role === "admin" ? [...navigation, { href: "/import", label: "Импорт", icon: Upload }, { href: "/team", label: "Екип и роли", icon: Users }, { href: "/activity", label: "Активност", icon: Activity }] : [...navigation, { href: "/activity", label: "Активност", icon: Activity }];
+  const visibleNavigation = canManageTeam(profile.role) ? [...navigation, { href: "/team", label: "Екип и роли", icon: Users }] : navigation;
+  const commands = [...visibleNavigation, ...(canContributeKnowledge(profile.role) ? [{ href: "/inbox?new=1", label: "Добави съдържание", icon: Plus }, { href: "/import", label: "Импорт от URL, RSS или Trello", icon: Inbox }] : []), { href: "/settings", label: "Настройки", icon: Settings }]
+    .filter(item => item.label.toLowerCase().includes(commandQuery.toLowerCase()));
 
   useEffect(() => {
     const closeAccountMenu = (event: MouseEvent) => {
@@ -38,6 +45,16 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     document.addEventListener("mousedown", closeAccountMenu);
     return () => document.removeEventListener("mousedown", closeAccountMenu);
   }, []);
+
+  useEffect(() => {
+    const shortcuts = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen(true); }
+      if (canContributeKnowledge(profile.role) && event.key.toLowerCase() === "n" && !event.ctrlKey && !event.metaKey && !["INPUT", "TEXTAREA", "SELECT"].includes((event.target as HTMLElement).tagName)) { event.preventDefault(); router.push("/inbox?new=1"); }
+      if (event.key === "Escape") setCommandOpen(false);
+    };
+    window.addEventListener("keydown", shortcuts);
+    return () => window.removeEventListener("keydown", shortcuts);
+  }, [router, profile.role]);
 
   const logout = async () => { setAccountMenu(false); await createClient()?.auth.signOut(); router.push("/login"); router.refresh(); };
 
@@ -53,9 +70,10 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     <div className="lg:pl-[232px]">
       <header className="sticky top-0 z-20 flex h-14 items-center border-b border-[#efeee4] bg-[#fbfaf0]/90 px-4 backdrop-blur-xl sm:px-7">
         <button className="mr-3 rounded-lg p-2 text-[#46483b] lg:hidden" onClick={() => setMobile(true)}><Menu size={19}/></button>
-        <form onSubmit={e => { e.preventDefault(); if (globalQuery.trim()) router.push(`/search?q=${encodeURIComponent(globalQuery.trim())}`); }} className="relative hidden w-full max-w-[340px] sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={14}/><input className="w-full rounded-full border-0 bg-[#f1f0e6] py-2 pl-9 pr-4 text-[11px] outline-none" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder="Търсене навсякъде..."/></form>
+        <form onSubmit={e => { e.preventDefault(); if (globalQuery.trim()) router.push(`/search?q=${encodeURIComponent(globalQuery.trim())}`); }} className="relative hidden w-full max-w-[380px] sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={15}/><input className="w-full rounded-full border-0 bg-[#f1f0e6] py-2.5 pl-9 pr-20 text-sm outline-none ring-[#52621c]/20 focus:ring-2" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder="Търсене навсякъде..."/><button type="button" onClick={() => setCommandOpen(true)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[#d7d6ca] bg-white px-2 py-1 text-[9px] text-[#767869]">Ctrl K</button></form>
         <div className="ml-auto flex items-center gap-3">
           {isDemo && <span className="hidden rounded-full bg-[#fff1c7] px-2.5 py-1 text-[9px] font-semibold text-[#6d5b20] sm:inline">ДЕМО ДАННИ</span>}
+          {canContributeKnowledge(profile.role) && <div className="group relative hidden sm:block"><Link href="/inbox?new=1" aria-label="Бързо добавяне" className="grid h-9 w-9 place-items-center rounded-full bg-[#52621c] text-white shadow-[0_5px_14px_rgba(82,98,28,.2)] transition hover:-translate-y-0.5 hover:bg-[#445217] hover:shadow-[0_8px_20px_rgba(82,98,28,.28)]"><Plus size={17}/></Link><span className="pointer-events-none absolute right-0 top-[calc(100%+9px)] z-50 hidden whitespace-nowrap rounded-lg bg-[#1b1c16] px-3 py-2 text-xs font-medium text-white shadow-lg group-hover:block">Бързо добавяне <kbd className="ml-1 rounded bg-white/15 px-1.5 py-0.5">N</kbd></span></div>}
           <Link href="/activity" title="Активност" className="rounded-lg p-2 text-[#767869] hover:bg-[#efeee4] hover:text-[#52621c]"><Bell size={15}/></Link>
           <div ref={accountMenuRef} className="relative">
             <button type="button" aria-expanded={accountMenu} aria-haspopup="menu" onClick={() => setAccountMenu(open => !open)} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-[#efeee4]">
@@ -64,7 +82,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
               <ChevronDown size={13} className={`hidden text-[#767869] transition-transform sm:block ${accountMenu ? "rotate-180" : ""}`}/>
             </button>
             {accountMenu && <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 overflow-hidden rounded-xl border border-[#e4e3d9] bg-white p-2 shadow-[0_18px_50px_rgba(55,56,42,.16)]">
-              <div className="border-b border-[#efeee4] px-3 py-2.5"><p className="truncate text-xs font-semibold text-[#1b1c16]">{profile.name}</p><p className="mt-1 truncate text-[9px] text-[#767869]">{profile.email}</p><span className="mt-2 inline-flex rounded-full bg-[#e9edda] px-2 py-1 text-[8px] font-semibold text-[#52621c]">{profile.role === "admin" ? "Администратор" : "Потребител"}</span></div>
+              <div className="border-b border-[#efeee4] px-3 py-2.5"><p className="truncate text-sm font-semibold text-[#1b1c16]">{profile.name}</p><p className="mt-1 truncate text-xs text-[#767869]">{profile.email}</p><span className="mt-2 inline-flex rounded-full bg-[#e9edda] px-2 py-1 text-[10px] font-semibold text-[#52621c]">{roleLabel(profile.role)}</span></div>
               <Link role="menuitem" href="/settings" onClick={() => setAccountMenu(false)} className="mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] text-[#46483b] hover:bg-[#f5f4ea]"><Settings size={14}/> Настройки</Link>
               <button role="menuitem" onClick={logout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[11px] text-[#ba1a1a] hover:bg-[#fff4f2]"><LogOut size={14}/> Изход</button>
             </div>}
@@ -73,6 +91,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto max-w-[1320px] p-4 pb-24 sm:p-7 sm:pb-24 lg:p-8">{children}</main>
     </div>
-    <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[#e4e3d9] bg-[#fbfaf0]/95 px-2 py-2 backdrop-blur-xl lg:hidden">{navigation.map(item => { const Icon = item.icon; const active = path === item.href; return <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 rounded-lg py-1.5 text-[7px] font-medium ${active ? "bg-[#52621c] text-white" : "text-[#767869]"}`}><Icon size={14}/><span>{item.label.replace("AI ", "")}</span></Link>})}</nav>
+    <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[#e4e3d9] bg-[#fbfaf0]/95 px-2 py-2 backdrop-blur-xl lg:hidden">{navigation.slice(0,5).map(item => { const Icon = item.icon; const active = path === item.href; return <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 rounded-lg py-1.5 text-[9px] font-medium ${active ? "bg-[#52621c] text-white" : "text-[#767869]"}`}><Icon size={16}/><span>{item.label.replace("AI ", "")}</span></Link>})}</nav>
+    <CommandPalette open={commandOpen} items={commands} query={commandQuery} onQueryChange={setCommandQuery} onClose={() => setCommandOpen(false)}/>
   </div>;
 }
