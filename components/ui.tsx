@@ -18,6 +18,16 @@ export function Modal({ open, title, subtitle, onClose, children }: { open: bool
   </div>;
 }
 
+export function Drawer({ open, title, subtitle, onClose, children }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode }) {
+  if (!open) return null;
+  return <div className="fixed inset-0 z-50 bg-[#1b1c16]/35 backdrop-blur-sm" onMouseDown={onClose}>
+    <aside role="dialog" aria-modal="true" className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-[#e4e3d9] bg-[#fbfaf0] shadow-[-24px_0_70px_rgba(27,28,22,.16)]" onMouseDown={event => event.stopPropagation()}>
+      <header className="flex items-start justify-between border-b border-[#e4e3d9] px-5 py-4 sm:px-7"><div><h2 className="text-xl font-semibold text-[#1b1c16]">{title}</h2>{subtitle && <p className="mt-1 text-sm text-[#767869]">{subtitle}</p>}</div><button aria-label="Затвори" onClick={onClose} className="rounded-lg p-2 text-[#767869] hover:bg-[#efeee4]"><X size={19}/></button></header>
+      <div className="flex-1 overflow-y-auto p-5 sm:p-7">{children}</div>
+    </aside>
+  </div>;
+}
+
 export function EmptyState({ title, text }: { title: string; text: string }) { return <div className="py-16 text-center"><div className="mx-auto mb-3 h-2 w-2 rounded-full bg-acid shadow-[0_0_18px_#b8f34a]"/><h3 className="font-medium">{title}</h3><p className="mt-1 text-sm text-slate-500">{text}</p></div>; }
 
 type ConfirmOptions = { title: string; description: string; confirmLabel?: string; cancelLabel?: string };

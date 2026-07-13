@@ -7,13 +7,14 @@ import { Badge, EmptyState, Modal, useConfirmAction } from "./ui";
 import { deleteTool, getTools, isDemo, saveTool, toggleToolFavorite } from "@/lib/data";
 import type { AITool, ToolStatus } from "@/lib/types";
 import { useAuthProfile } from "@/lib/auth-context";
+import { canEditContent } from "@/lib/permissions";
 
 const blank: Partial<AITool> = { name: "", category: "Езиков модел", description: "", website_url: "", status: "В тестване", rating: 4, is_favorite: false };
 
 export function ToolsView() {
   const confirmAction = useConfirmAction();
   const { role } = useAuthProfile();
-  const canEdit = role === "admin";
+  const canEdit = canEditContent(role);
   const [items, setItems] = useState<AITool[]>([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Всички категории");

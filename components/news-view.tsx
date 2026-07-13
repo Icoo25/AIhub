@@ -6,6 +6,7 @@ import { PageHeading } from "./page-heading";
 import { Badge, EmptyState, Modal, useConfirmAction } from "./ui";
 import { deleteNews, getNews, isDemo, saveNews } from "@/lib/data";
 import { useAuthProfile } from "@/lib/auth-context";
+import { canEditContent } from "@/lib/permissions";
 import type { AINews } from "@/lib/types";
 
 const blank = (): Partial<AINews> => ({ title: "", summary: "", source_url: "", category: "Индустрия", published_date: new Date().toISOString().slice(0, 10) });
@@ -13,7 +14,7 @@ const blank = (): Partial<AINews> => ({ title: "", summary: "", source_url: "", 
 export function NewsView() {
   const confirmAction = useConfirmAction();
   const { role } = useAuthProfile();
-  const canEdit = role === "admin";
+  const canEdit = canEditContent(role);
   const [items, setItems] = useState<AINews[]>([]);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(false);

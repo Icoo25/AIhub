@@ -6,6 +6,7 @@ import { PageHeading } from "./page-heading";
 import { Badge, EmptyState, Modal, useConfirmAction } from "./ui";
 import { deleteExperiment, getExperiments, isDemo, saveExperiment } from "@/lib/data";
 import { useAuthProfile } from "@/lib/auth-context";
+import { canEditContent } from "@/lib/permissions";
 import type { Experiment } from "@/lib/types";
 
 const blank = (): Partial<Experiment> => ({ name: "", description: "", model_used: "", result: "" });
@@ -13,7 +14,7 @@ const blank = (): Partial<Experiment> => ({ name: "", description: "", model_use
 export function ExperimentsView() {
   const confirmAction = useConfirmAction();
   const { role } = useAuthProfile();
-  const canEdit = role === "admin";
+  const canEdit = canEditContent(role);
   const [items, setItems] = useState<Experiment[]>([]);
   const [editing, setEditing] = useState<Partial<Experiment>>(blank());
   const [modal, setModal] = useState(false);

@@ -4,21 +4,23 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Beaker, Bot, Heart, Newspaper, Plus, Radio, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { getExperiments, getNews, getTools } from "@/lib/data";
-import type { AINews, AITool, Experiment } from "@/lib/types";
+import { getExperiments, getKnowledgeItems, getNews, getTools } from "@/lib/data";
+import type { AINews, AITool, Experiment, KnowledgeItem } from "@/lib/types";
 import { useAuthProfile } from "@/lib/auth-context";
+import { canContributeKnowledge } from "@/lib/permissions";
 
 export default function Dashboard() {
   const { role, name } = useAuthProfile();
   const [addMenu, setAddMenu] = useState(false);
   const [tools, setTools] = useState<AITool[]>([]), [news, setNews] = useState<AINews[]>([]), [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [loading, setLoading] = useState(true), [error, setError] = useState("");
-  useEffect(() => { Promise.all([getTools(), getNews(), getExperiments()]).then(([t, n, e]) => { setTools(t); setNews(n); setExperiments(e); }).catch(() => setError("Таблото не успя да зареди всички данни.")).finally(() => setLoading(false)); }, []);
+  useEffect(() => { Promise.all([getTools(), getNews(), getExperiments(), getKnowledgeItems()]).then(([t, n, e, k]) => { setTools(t); setNews(n); setExperiments(e); setKnowledge(k); }).catch(() => setError("Таблото не успя да зареди всички данни.")).finally(() => setLoading(false)); }, []);
   const stats = [
-    { label: "ИНСТРУМЕНТА", value: tools.length, icon: Bot },
-    { label: "НОВИНИ", value: news.length, icon: Radio },
-    { label: "ЕКСПЕРИМЕНТА", value: experiments.length, icon: Beaker },
-    { label: "ЛЮБИМИ", value: tools.filter(t => t.is_favorite).length, icon: Heart },
+    { label: "ВХОДЯЩИ", value: knowledge.filter(item => item.status === "Входящи").length, icon: Radio, href: "/inbox" },
+    { label: "ЗА ПРЕГЛЕД", value: knowledge.filter(item => item.status === "За преглед").length, icon: Sparkles, href: "/library" },
+    { label: "ИНСТРУМЕНТИ", value: tools.length, icon: Bot, href: "/tools" },
+    { label: "ЕКСПЕРИМЕНТИ", value: experiments.length, icon: Beaker, href: "/experiments" },
   ];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Добро утро" : hour < 18 ? "Добър ден" : "Добър вечер";
@@ -34,10 +36,10 @@ export default function Dashboard() {
     {loading && <div className="panel h-2 animate-pulse"/>}
     <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
       <div><h1 className="text-3xl font-semibold tracking-[-.035em] text-[#1b1c16] sm:text-[38px]">{greeting}, {name}</h1><p className="mt-1.5 text-[12px] text-[#767869]">Актуален преглед на съдържанието във вашата AI лаборатория.</p></div>
-      {role === "admin" && <div className="relative self-start sm:self-auto"><button onClick={() => setAddMenu(value => !value)} aria-expanded={addMenu} className="btn-primary"><Plus size={15}/> Добави съдържание</button>{addMenu && <div className="absolute right-0 top-12 z-20 w-56 rounded-xl border border-[#e4e3d9] bg-white p-2 shadow-xl">{[{href:"/tools?new=1",label:"Нов AI инструмент"},{href:"/news?new=1",label:"Запис в инфо потока"},{href:"/experiments?new=1",label:"Нов експеримент"},{href:"/library?new=1",label:"Карта в AI библиотеката"}].map(item => <Link key={item.href} href={item.href} onClick={() => setAddMenu(false)} className="block rounded-lg px-3 py-2.5 text-xs text-[#46483b] hover:bg-[#f5f4ea]">{item.label}</Link>)}</div>}</div>}
+      {canContributeKnowledge(role) && <div className="relative self-start sm:self-auto"><button onClick={() => setAddMenu(value => !value)} aria-expanded={addMenu} className="btn-primary"><Plus size={15}/> Добави съдържание</button>{addMenu && <div className="absolute right-0 top-12 z-20 w-60 rounded-xl border border-[#e4e3d9] bg-white p-2 shadow-xl">{[{href:"/inbox?new=1",label:"Бърз запис във Входящи"},{href:"/tools?new=1",label:"Нов AI инструмент"},{href:"/news?new=1",label:"Запис в инфо потока"},{href:"/experiments?new=1",label:"Нов експеримент"},{href:"/library?new=1",label:"Карта в AI библиотеката"}].map(item => <Link key={item.href} href={item.href} onClick={() => setAddMenu(false)} className="block rounded-lg px-3 py-2.5 text-sm text-[#46483b] hover:bg-[#f5f4ea]">{item.label}</Link>)}</div>}</div>}
     </section>
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{stats.map(s => <article key={s.label} className="rounded-xl border border-[#e4e3d9] bg-white px-5 py-4 shadow-[0_3px_12px_rgba(55,56,42,.035)]"><div className="flex items-center gap-4"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#f1f3e7] text-[#52621c]"><s.icon size={17}/></span><div><p className="text-2xl font-semibold leading-none text-[#1b1c16]">{s.value}</p><p className="mt-2 text-[8px] font-semibold tracking-[.11em] text-[#767869]">{s.label}</p></div></div></article>)}</section>
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{stats.map(s => <Link href={s.href} key={s.label} className="group rounded-xl border border-[#e4e3d9] bg-white px-5 py-4 shadow-[0_3px_12px_rgba(55,56,42,.035)] transition hover:-translate-y-0.5 hover:border-[#c6c8b6] hover:shadow-lg"><div className="flex items-center gap-4"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#f1f3e7] text-[#52621c]"><s.icon size={17}/></span><div className="flex-1"><p className="text-2xl font-semibold leading-none text-[#1b1c16]">{s.value}</p><p className="mt-2 text-[8px] font-semibold tracking-[.11em] text-[#767869]">{s.label}</p></div><ArrowRight size={15} className="text-[#9a9b8d] transition group-hover:translate-x-1 group-hover:text-[#52621c]"/></div></Link>)}</section>
 
     <section className="grid gap-5 xl:grid-cols-[1fr_300px]">
       <div className="space-y-6">
