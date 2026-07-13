@@ -125,7 +125,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       </section>
 
       <section className="relative z-20 ml-auto flex min-h-[100dvh] w-full items-center px-4 pb-8 pt-24 sm:px-8 sm:pt-28 lg:w-1/2 lg:px-[4vw] lg:py-10">
-        <div className="mx-auto w-full max-w-[430px] rounded-[26px] border border-white/55 bg-white/85 p-6 shadow-[0_28px_80px_rgba(43,40,29,.22)] backdrop-blur-2xl sm:p-9 lg:-translate-y-5 lg:bg-[#fffef9]/90">
+        <div className="mx-auto w-full max-w-[430px] rounded-[26px] border border-white/55 bg-white/85 p-6 shadow-[0_28px_80px_rgba(43,40,29,.22)] backdrop-blur-2xl sm:p-9 lg:translate-x-[6vw] lg:-translate-y-5 lg:bg-[#fffef9]/90">
           <div className="mb-7 border-b border-[#dedbd0] pb-6 lg:hidden">
             <h1 className="text-[26px] font-semibold leading-[1.12] tracking-[-.04em] text-[#2d3025] sm:text-[30px]">
               Посока към <span className="text-[#64752c]">по-умна работа с AI.</span>
