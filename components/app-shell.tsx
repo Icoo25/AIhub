@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Beaker, Bell, BookOpen, Bot, ChevronDown, Command, FlaskConical, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Search, Settings, Users, X } from "lucide-react";
+import { Beaker, Bell, BookOpen, Bot, ChevronDown, Compass, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Search, Settings, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isDemo } from "@/lib/data";
 import { AuthProvider, useAuthProfile } from "@/lib/auth-context";
 import { ConfirmationProvider } from "@/components/ui";
 import { canContributeKnowledge, canManageTeam, roleLabel } from "@/lib/permissions";
+import { CommandPalette } from "@/components/command-palette";
 
 const navigation = [
   { href: "/", label: "Общ преглед", icon: LayoutDashboard },
@@ -61,7 +62,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     {mobile && <button aria-label="Затвори менюто" className="fixed inset-0 z-30 bg-[#1b1c16]/25 lg:hidden" onClick={() => setMobile(false)}/>} 
     <aside className={`fixed inset-y-0 left-0 z-40 flex w-[232px] flex-col border-r border-[#e4e3d9] bg-[#f5f4ea] px-3 py-4 transition-transform lg:translate-x-0 ${mobile ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="mb-7 flex items-center justify-between px-2">
-        <Link href="/" className="flex items-center gap-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#52621c] text-white"><FlaskConical size={16}/></span><span><strong className="block text-[13px] font-semibold leading-none text-[#1b1c16]">AI Innovation</strong><span className="mt-1 block text-[8px] font-medium uppercase tracking-[.16em] text-[#767869]">Лаборатория за иновации</span></span></Link>
+        <Link href="/" className="flex items-center gap-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#52621c] text-white"><Compass size={17}/></span><span><strong className="block text-[13px] font-semibold leading-none text-[#1b1c16]">AI Компас</strong><span className="mt-1 block text-[8px] font-medium uppercase tracking-[.16em] text-[#767869]">Вътрешна AI платформа</span></span></Link>
         <button className="text-[#767869] lg:hidden" onClick={() => setMobile(false)}><X size={18}/></button>
       </div>
       <nav className="space-y-1">{visibleNavigation.map(item => { const active = path === item.href; const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={() => setMobile(false)} className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[12px] font-medium transition ${active ? "bg-[#e9edda] text-[#52621c]" : "text-[#46483b] hover:bg-[#efeee4]"}`}><Icon size={15}/><span>{item.label}</span>{active && <span className="absolute right-0 h-5 w-[2px] rounded-full bg-[#52621c]"/>}</Link>})}</nav>
@@ -72,7 +73,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
         <form onSubmit={e => { e.preventDefault(); if (globalQuery.trim()) router.push(`/search?q=${encodeURIComponent(globalQuery.trim())}`); }} className="relative hidden w-full max-w-[380px] sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={15}/><input className="w-full rounded-full border-0 bg-[#f1f0e6] py-2.5 pl-9 pr-20 text-sm outline-none ring-[#52621c]/20 focus:ring-2" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder="Търсене навсякъде..."/><button type="button" onClick={() => setCommandOpen(true)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[#d7d6ca] bg-white px-2 py-1 text-[9px] text-[#767869]">Ctrl K</button></form>
         <div className="ml-auto flex items-center gap-3">
           {isDemo && <span className="hidden rounded-full bg-[#fff1c7] px-2.5 py-1 text-[9px] font-semibold text-[#6d5b20] sm:inline">ДЕМО ДАННИ</span>}
-          {canContributeKnowledge(profile.role) && <Link href="/inbox?new=1" title="Бързо добавяне" className="hidden items-center gap-2 rounded-lg bg-[#52621c] px-3 py-2 text-xs font-semibold text-white hover:bg-[#445217] sm:flex"><Plus size={14}/>Добави</Link>}
+          {canContributeKnowledge(profile.role) && <div className="group relative hidden sm:block"><Link href="/inbox?new=1" aria-label="Бързо добавяне" className="grid h-9 w-9 place-items-center rounded-full bg-[#52621c] text-white shadow-[0_5px_14px_rgba(82,98,28,.2)] transition hover:-translate-y-0.5 hover:bg-[#445217] hover:shadow-[0_8px_20px_rgba(82,98,28,.28)]"><Plus size={17}/></Link><span className="pointer-events-none absolute right-0 top-[calc(100%+9px)] z-50 hidden whitespace-nowrap rounded-lg bg-[#1b1c16] px-3 py-2 text-xs font-medium text-white shadow-lg group-hover:block">Бързо добавяне <kbd className="ml-1 rounded bg-white/15 px-1.5 py-0.5">N</kbd></span></div>}
           <Link href="/activity" title="Активност" className="rounded-lg p-2 text-[#767869] hover:bg-[#efeee4] hover:text-[#52621c]"><Bell size={15}/></Link>
           <div ref={accountMenuRef} className="relative">
             <button type="button" aria-expanded={accountMenu} aria-haspopup="menu" onClick={() => setAccountMenu(open => !open)} className="flex items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-[#efeee4]">
@@ -91,6 +92,6 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
       <main className="mx-auto max-w-[1320px] p-4 pb-24 sm:p-7 sm:pb-24 lg:p-8">{children}</main>
     </div>
     <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[#e4e3d9] bg-[#fbfaf0]/95 px-2 py-2 backdrop-blur-xl lg:hidden">{navigation.slice(0,5).map(item => { const Icon = item.icon; const active = path === item.href; return <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 rounded-lg py-1.5 text-[9px] font-medium ${active ? "bg-[#52621c] text-white" : "text-[#767869]"}`}><Icon size={16}/><span>{item.label.replace("AI ", "")}</span></Link>})}</nav>
-    {commandOpen && <div className="fixed inset-0 z-[70] flex justify-center bg-[#1b1c16]/35 px-4 pt-[12vh] backdrop-blur-sm" onMouseDown={() => setCommandOpen(false)}><section className="h-fit w-full max-w-xl overflow-hidden rounded-2xl border border-[#e4e3d9] bg-white shadow-[0_28px_90px_rgba(27,28,22,.24)]" onMouseDown={event => event.stopPropagation()}><div className="flex items-center gap-3 border-b border-[#efeee4] px-4"><Search size={17} className="text-[#767869]"/><input autoFocus className="w-full py-4 text-sm outline-none" placeholder="Търсене на страница или действие..." value={commandQuery} onChange={event => setCommandQuery(event.target.value)}/><Command size={15} className="text-[#9a9b8d]"/></div><div className="max-h-[55vh] overflow-y-auto p-2">{commands.map(item => { const Icon = item.icon; return <Link key={`${item.href}-${item.label}`} href={item.href} onClick={() => { setCommandOpen(false); setCommandQuery(""); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-[#46483b] hover:bg-[#f5f4ea]"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#e9edda] text-[#52621c]"><Icon size={15}/></span>{item.label}</Link>; })}{!commands.length && <p className="p-8 text-center text-sm text-[#767869]">Няма намерени действия.</p>}</div><div className="border-t border-[#efeee4] px-4 py-2 text-[10px] text-[#9a9b8d]">Ctrl K за отваряне · N за нов запис · Esc за затваряне</div></section></div>}
+    <CommandPalette open={commandOpen} items={commands} query={commandQuery} onQueryChange={setCommandQuery} onClose={() => setCommandOpen(false)}/>
   </div>;
 }
