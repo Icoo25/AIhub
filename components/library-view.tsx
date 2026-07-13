@@ -1,0 +1,222 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  Archive, ArrowUpRight, CalendarDays, Download, ExternalLink, FileText,
+  FolderPlus, Grid2X2, History, List, LockKeyhole, MoreHorizontal, Paperclip,
+  Plus, Search, Settings2, Star, Trash2, Users,
+} from "lucide-react";
+import {
+  deleteKnowledgeAttachment, deleteKnowledgeCollection, getKnowledgeAttachments,
+  getKnowledgeCollections, getKnowledgeHistory, getKnowledgeItems, getKnowledgeStages,
+  openKnowledgeAttachment, saveKnowledgeCollection, saveKnowledgeItem, saveKnowledgeStage,
+  uploadKnowledgeAttachment,
+} from "@/lib/data";
+import type {
+  KnowledgeAttachment, KnowledgeCollection, KnowledgeHistory as HistoryEntry,
+  KnowledgeItem, KnowledgeStage,
+} from "@/lib/types";
+import { useAuthProfile } from "@/lib/auth-context";
+import { EmptyState, Modal, useConfirmAction } from "./ui";
+
+const fallbackStages: KnowledgeStage[] = [
+  { id: "new", name: "Ново", color: "#67558d", position: 10, created_at: "" },
+  { id: "review", name: "За преглед", color: "#a16b24", position: 20, created_at: "" },
+  { id: "testing", name: "За тестване", color: "#2563a6", position: 30, created_at: "" },
+  { id: "useful", name: "Полезно", color: "#52621c", position: 40, created_at: "" },
+  { id: "archive", name: "Архив", color: "#767869", position: 50, created_at: "" },
+];
+
+const categorySuggestions = ["Източници", "Инструменти", "Съвети и трикове", "За тестване", "Идеи", "Полезни prompts", "Обучения"];
+const emptyItem: Partial<KnowledgeItem> = {
+  title: "", description: "", category: "Източници", source_url: "", status: "Ново",
+  priority: "Среден", rating: 0, tags: [], notes: "", visibility: "shared", collection_id: null,
+};
+
+export function LibraryView() {
+  const confirmAction = useConfirmAction();
+  const auth = useAuthProfile();
+  const canEdit = auth.role === "admin";
+  const [items, setItems] = useState<KnowledgeItem[]>([]);
+  const [collections, setCollections] = useState<KnowledgeCollection[]>([]);
+  const [stages, setStages] = useState<KnowledgeStage[]>(fallbackStages);
+  const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [editing, setEditing] = useState<Partial<KnowledgeItem>>(emptyItem);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("Всички");
+  const [collection, setCollection] = useState("all");
+  const [visibility, setVisibility] = useState("all");
+  const [view, setView] = useState<"board" | "list">("board");
+  const [showArchived, setShowArchived] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<File[]>([]);
+  const [notice, setNotice] = useState("");
+  const [newCollection, setNewCollection] = useState({ name: "", description: "", color: "#52621c" });
+  const [newStage, setNewStage] = useState({ name: "", color: "#67558d" });
+
+  const refresh = async () => {
+    const [nextItems, nextCollections, nextStages] = await Promise.all([
+      getKnowledgeItems(), getKnowledgeCollections(), getKnowledgeStages(),
+    ]);
+    setItems(nextItems);
+    setCollections(nextCollections);
+    if (nextStages.length) setStages(nextStages);
+  };
+
+  useEffect(() => { refresh().catch(() => setNotice("Библиотеката не успя да зареди данните от Supabase.")).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    if (canEdit && new URLSearchParams(window.location.search).get("new") === "1") openNew();
+  }, [canEdit]);
+
+  const categories = useMemo(() => ["Всички", ...Array.from(new Set(items.map(item => item.category).filter(Boolean)))], [items]);
+  const shown = useMemo(() => items.filter(item => {
+    const text = `${item.title} ${item.description} ${item.tags.join(" ")} ${item.notes}`.toLowerCase();
+    return (showArchived ? Boolean(item.archived_at) : !item.archived_at)
+      && (category === "Всички" || item.category === category)
+      && (collection === "all" || (collection === "none" ? !item.collection_id : item.collection_id === collection))
+      && (visibility === "all" || item.visibility === visibility)
+      && text.includes(query.toLowerCase());
+  }), [items, category, collection, visibility, query, showArchived]);
+
+  function openNew() {
+    setEditing({ ...emptyItem, status: stages[0]?.name || "Ново" });
+    setAttachments([]); setHistory([]); setFiles([]); setNotice(""); setEditorOpen(true);
+  }
+
+  async function openEdit(item: KnowledgeItem) {
+    if (!canEdit) return;
+    setEditing(item); setFiles([]); setNotice(""); setEditorOpen(true);
+    const [nextAttachments, nextHistory] = await Promise.all([getKnowledgeAttachments(item.id), getKnowledgeHistory(item.id)]);
+    setAttachments(nextAttachments); setHistory(nextHistory);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); if (!canEdit) return;
+    setBusy(true); setNotice("");
+    try {
+      const saved = await saveKnowledgeItem(editing.id ? editing : { ...editing, id: undefined });
+      if (!saved) throw new Error("Липсва запис");
+      for (const file of files) await uploadKnowledgeAttachment(saved.id, file);
+      await refresh();
+      setEditorOpen(false); setFiles([]);
+    } catch {
+      setNotice("Промяната не е запазена. Изпълнете library-enhancements.sql и опитайте отново.");
+    } finally { setBusy(false); }
+  }
+
+  async function move(id: string, status: string) {
+    if (!canEdit) return;
+    const item = items.find(entry => entry.id === id);
+    if (!item || item.status === status) return;
+    const next = { ...item, status };
+    setItems(current => current.map(entry => entry.id === id ? next : entry));
+    try { await saveKnowledgeItem(next); } catch { await refresh(); setNotice("Етапът не беше променен."); }
+  }
+
+  async function toggleArchive(item: Partial<KnowledgeItem>) {
+    if (!item.id) return;
+    try {
+      await saveKnowledgeItem({ ...item, archived_at: item.archived_at ? null : new Date().toISOString() });
+      await refresh(); setEditorOpen(false);
+    } catch { setNotice("Архивирането не беше успешно."); }
+  }
+
+  async function addCollection(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const saved = await saveKnowledgeCollection(newCollection);
+      setCollections(current => [...current, saved].sort((a, b) => a.name.localeCompare(b.name, "bg")));
+      setNewCollection({ name: "", description: "", color: "#52621c" });
+    } catch { setNotice("Колекцията не беше създадена."); }
+  }
+
+  async function removeCollection(id: string) {
+    const target = collections.find(item => item.id === id);
+    if (!(await confirmAction({ title: "Изтриване на колекция", description: `Колекцията „${target?.name || "Без име"}“ ще бъде изтрита. Картите ще останат запазени без колекция.`, confirmLabel: "Изтрий колекцията" }))) return;
+    try { await deleteKnowledgeCollection(id); setCollections(current => current.filter(item => item.id !== id)); }
+    catch { setNotice("Колекцията не беше изтрита."); }
+  }
+
+  async function addStage(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const saved = await saveKnowledgeStage({ ...newStage, position: (Math.max(0, ...stages.map(stage => stage.position)) + 10) });
+      setStages(current => [...current, saved].sort((a, b) => a.position - b.position));
+      setNewStage({ name: "", color: "#67558d" });
+    } catch { setNotice("Етапът не беше създаден или вече съществува."); }
+  }
+
+  async function removeAttachment(item: KnowledgeAttachment) {
+    if (!(await confirmAction({ title: "Изтриване на файл", description: `Файлът „${item.file_name}“ ще бъде премахнат окончателно от Storage.`, confirmLabel: "Изтрий файла" }))) return;
+    try { await deleteKnowledgeAttachment(item); setAttachments(current => current.filter(file => file.id !== item.id)); }
+    catch { setNotice("Файлът не беше изтрит."); }
+  }
+
+  return <div>
+    <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+      <div><p className="mb-1 text-[9px] font-semibold uppercase tracking-[.14em] text-[#767869]">Център за знания</p><h1 className="text-3xl font-semibold tracking-[-.035em] text-[#1b1c16]">AI Библиотека</h1><p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[#767869]">Организирайте източници, идеи, инструменти и материали в колекции с гъвкав работен процес.</p></div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-lg border border-[#d7d6ca] bg-white p-1"><button onClick={() => setView("board")} className={`rounded-md px-3 py-2 text-[10px] ${view === "board" ? "bg-[#efeee4]" : "text-[#767869]"}`}><Grid2X2 size={13} className="mr-1 inline"/>Канбан</button><button onClick={() => setView("list")} className={`rounded-md px-3 py-2 text-[10px] ${view === "list" ? "bg-[#efeee4]" : "text-[#767869]"}`}><List size={13} className="mr-1 inline"/>Списък</button></div>
+        {canEdit && <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={14}/> Настрой</button>}
+        {canEdit && <button className="btn-primary" onClick={openNew}><Plus size={14}/> Нова карта</button>}
+      </div>
+    </div>
+
+    {notice && <div className="mb-4 rounded-xl border border-[#f0c9a8] bg-[#fff6ec] px-4 py-3 text-[10px] text-[#8a4d20]">{notice}</div>}
+
+    <div className="panel mb-5 space-y-3 p-3">
+      <div className="flex flex-col gap-3 lg:flex-row">
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={14}/><input className="field pl-9" value={query} onChange={e => setQuery(e.target.value)} placeholder="Търсене по заглавие, описание, тагове и бележки..."/></div>
+        <select className="field lg:w-48" value={collection} onChange={e => setCollection(e.target.value)}><option value="all">Всички колекции</option><option value="none">Без колекция</option>{collections.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        <select className="field lg:w-44" value={visibility} onChange={e => setVisibility(e.target.value)}><option value="all">Всички записи</option><option value="shared">Споделени</option><option value="personal">Лични</option></select>
+        <button onClick={() => setShowArchived(value => !value)} className={`btn-secondary ${showArchived ? "border-[#52621c] text-[#52621c]" : ""}`}><Archive size={14}/>{showArchived ? "Към активните" : "Архив"}</button>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">{categories.map(item => <button key={item} onClick={() => setCategory(item)} className={`whitespace-nowrap rounded-full px-3 py-2 text-[9px] font-medium ${category === item ? "bg-[#52621c] text-white" : "bg-[#efeee4] text-[#46483b]"}`}>{item}</button>)}</div>
+    </div>
+
+    {loading ? <div className="panel h-72 animate-pulse"/> : !shown.length ? <div className="panel"><EmptyState title="Няма записи" text="Променете филтрите или добавете нова карта в библиотеката."/></div> : view === "board" ?
+      <div className="flex gap-4 overflow-x-auto pb-5">{stages.map(stage => <section key={stage.id} className="w-[270px] shrink-0" onDragOver={e => { if (canEdit) e.preventDefault(); }} onDrop={e => move(e.dataTransfer.getData("text/plain"), stage.name)}><div className="mb-3 flex items-center justify-between"><h2 className="flex items-center gap-2 text-[12px] font-semibold"><span className="h-2 w-2 rounded-full" style={{backgroundColor: stage.color}}/>{stage.name}<span className="rounded-full bg-[#efeee4] px-2 py-0.5 text-[8px] text-[#767869]">{shown.filter(item => item.status === stage.name).length}</span></h2><MoreHorizontal size={14} className="text-[#9a9b8d]"/></div><div className="min-h-32 space-y-3">{shown.filter(item => item.status === stage.name).map(item => <KnowledgeCard key={item.id} item={item} collection={collections.find(entry => entry.id === item.collection_id)} canEdit={canEdit} onEdit={() => openEdit(item)}/>)}</div></section>)}</div>
+      : <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map(item => <KnowledgeCard key={item.id} item={item} collection={collections.find(entry => entry.id === item.collection_id)} canEdit={canEdit} onEdit={() => openEdit(item)}/>)}</div>}
+
+    <Modal open={editorOpen && canEdit} onClose={() => setEditorOpen(false)} title={editing.id ? "Редактиране на карта" : "Нова карта"} subtitle="Всички полета могат да се променят по-късно.">
+      <form onSubmit={submit} className="space-y-4">
+        <label className="block text-xs text-[#767869]">Заглавие<input required className="field mt-2" value={editing.title || ""} onChange={e => setEditing({...editing, title:e.target.value})}/></label>
+        <label className="block text-xs text-[#767869]">Описание<textarea required rows={3} className="field mt-2 resize-none" value={editing.description || ""} onChange={e => setEditing({...editing, description:e.target.value})}/></label>
+        <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs text-[#767869]">Категория<input required list="library-category-options" className="field mt-2" value={editing.category || ""} onChange={e => setEditing({...editing, category:e.target.value})}/><datalist id="library-category-options">{categorySuggestions.map(item => <option key={item} value={item}/>)}</datalist></label><label className="text-xs text-[#767869]">Колекция<select className="field mt-2" value={editing.collection_id || ""} onChange={e => setEditing({...editing, collection_id:e.target.value || null})}><option value="">Без колекция</option>{collections.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>
+        <div className="grid gap-4 sm:grid-cols-3"><label className="text-xs text-[#767869]">Етап<select className="field mt-2" value={editing.status} onChange={e => setEditing({...editing, status:e.target.value})}>{stages.map(item => <option key={item.id}>{item.name}</option>)}</select></label><label className="text-xs text-[#767869]">Приоритет<select className="field mt-2" value={editing.priority} onChange={e => setEditing({...editing, priority:e.target.value as KnowledgeItem["priority"]})}><option>Нисък</option><option>Среден</option><option>Висок</option></select></label><label className="text-xs text-[#767869]">Видимост<select className="field mt-2" value={editing.visibility || "shared"} onChange={e => setEditing({...editing, visibility:e.target.value as KnowledgeItem["visibility"]})}><option value="shared">Споделена</option><option value="personal">Лична</option></select></label></div>
+        <label className="block text-xs text-[#767869]">Линк към източник<input type="url" className="field mt-2" value={editing.source_url || ""} onChange={e => setEditing({...editing, source_url:e.target.value})}/></label>
+        <div className="grid gap-4 sm:grid-cols-2"><label className="text-xs text-[#767869]">Тагове<input className="field mt-2" value={editing.tags?.join(", ") || ""} onChange={e => setEditing({...editing, tags:e.target.value.split(",").map(tag => tag.trim()).filter(Boolean)})}/></label><label className="text-xs text-[#767869]">Оценка<input className="field mt-2" type="number" min="0" max="5" step="0.1" value={editing.rating ?? 0} onChange={e => setEditing({...editing, rating:Number(e.target.value)})}/></label></div>
+        <label className="block text-xs text-[#767869]">Бележки<textarea rows={3} className="field mt-2 resize-none" value={editing.notes || ""} onChange={e => setEditing({...editing, notes:e.target.value})}/></label>
+        <label className="block rounded-xl border border-dashed border-[#d7d6ca] p-4 text-xs text-[#767869]"><Paperclip size={14} className="mr-2 inline"/>Прикачи файлове (до 20 MB)<input type="file" multiple className="mt-3 block w-full text-[10px]" onChange={e => setFiles(Array.from(e.target.files || []))}/></label>
+        {!!attachments.length && <div className="space-y-2"><p className="text-[9px] font-semibold uppercase tracking-wider text-[#767869]">Прикачени файлове</p>{attachments.map(file => <div key={file.id} className="flex items-center gap-2 rounded-lg bg-[#f5f4ea] p-3 text-[10px]"><FileText size={13}/><span className="min-w-0 flex-1 truncate">{file.file_name}</span><button type="button" onClick={() => openKnowledgeAttachment(file)} title="Отвори"><Download size={13}/></button><button type="button" onClick={() => removeAttachment(file)} title="Изтрий" className="text-[#ba1a1a]"><Trash2 size={13}/></button></div>)}</div>}
+        {!!history.length && <details className="rounded-xl bg-[#f5f4ea] p-4"><summary className="cursor-pointer text-[10px] font-semibold"><History size={13} className="mr-2 inline"/>История на промените ({history.length})</summary><div className="mt-3 space-y-2">{history.map(entry => <div key={entry.id} className="flex justify-between text-[9px] text-[#767869]"><span>{historyLabel(entry.action)}</span><span>{new Date(entry.created_at).toLocaleString("bg-BG")}</span></div>)}</div></details>}
+        <div className="flex flex-wrap justify-between gap-2 pt-2">{editing.id ? <button type="button" className="btn-secondary" onClick={() => toggleArchive(editing)}><Archive size={13}/>{editing.archived_at ? "Възстанови" : "Архивирай"}</button> : <span/>}<div className="ml-auto flex gap-2"><button type="button" className="btn-secondary" onClick={() => setEditorOpen(false)}>Отказ</button><button disabled={busy} className="btn-primary">{busy ? "Запазване..." : "Запази"}</button></div></div>
+      </form>
+    </Modal>
+
+    <Modal open={settingsOpen && canEdit} onClose={() => setSettingsOpen(false)} title="Настройки на библиотеката" subtitle="Създавайте колекции и собствени етапи на работа.">
+      <div className="space-y-6">
+        <section><h3 className="mb-3 text-sm font-semibold">Колекции</h3><form onSubmit={addCollection} className="grid gap-2 sm:grid-cols-[1fr_1fr_44px_auto]"><input required className="field" placeholder="Име" value={newCollection.name} onChange={e => setNewCollection({...newCollection,name:e.target.value})}/><input className="field" placeholder="Описание" value={newCollection.description} onChange={e => setNewCollection({...newCollection,description:e.target.value})}/><input type="color" className="h-10 w-11 rounded-lg" value={newCollection.color} onChange={e => setNewCollection({...newCollection,color:e.target.value})}/><button className="btn-primary"><FolderPlus size={14}/> Добави</button></form><div className="mt-3 space-y-2">{collections.map(item => <div key={item.id} className="flex items-center gap-2 rounded-lg bg-[#f5f4ea] p-3"><span className="h-3 w-3 rounded-full" style={{backgroundColor:item.color}}/><div className="min-w-0 flex-1"><p className="text-xs font-semibold">{item.name}</p><p className="truncate text-[9px] text-[#767869]">{item.description || "Без описание"}</p></div><button onClick={() => removeCollection(item.id)} className="text-[#ba1a1a]" title="Изтрий"><Trash2 size={13}/></button></div>)}</div></section>
+        <section className="border-t border-[#e4e3d9] pt-5"><h3 className="mb-3 text-sm font-semibold">Етапи на работа</h3><form onSubmit={addStage} className="grid gap-2 sm:grid-cols-[1fr_44px_auto]"><input required className="field" placeholder="Нов етап" value={newStage.name} onChange={e => setNewStage({...newStage,name:e.target.value})}/><input type="color" className="h-10 w-11 rounded-lg" value={newStage.color} onChange={e => setNewStage({...newStage,color:e.target.value})}/><button className="btn-primary"><Plus size={14}/> Добави</button></form><div className="mt-3 flex flex-wrap gap-2">{stages.map(item => <span key={item.id} className="rounded-full px-3 py-2 text-[9px] text-white" style={{backgroundColor:item.color}}>{item.name}</span>)}</div></section>
+      </div>
+    </Modal>
+  </div>;
+}
+
+function KnowledgeCard({ item, collection, canEdit, onEdit }: { item: KnowledgeItem; collection?: KnowledgeCollection; canEdit: boolean; onEdit: () => void }) {
+  return <article draggable={canEdit} onDragStart={e => e.dataTransfer.setData("text/plain", item.id)} onClick={onEdit} className={`rounded-xl border border-[#e4e3d9] bg-white p-4 shadow-[0_3px_12px_rgba(55,56,42,.035)] transition hover:-translate-y-0.5 hover:border-[#c6c8b6] ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}>
+    <div className="flex items-center justify-between gap-2"><span className="rounded bg-[#efeee4] px-2 py-1 text-[7px] font-bold uppercase text-[#46483b]">{item.category}</span><span className={`rounded-full px-2 py-1 text-[7px] font-semibold ${item.priority === "Висок" ? "bg-[#ffdad6] text-[#ba1a1a]" : item.priority === "Нисък" ? "bg-[#e9edda] text-[#52621c]" : "bg-[#fff0c7] text-[#765b20]"}`}>{item.priority}</span></div>
+    <h3 className="mt-3 text-[11px] font-semibold leading-relaxed text-[#1b1c16]">{item.title}</h3><p className="mt-1.5 line-clamp-2 text-[9px] leading-relaxed text-[#767869]">{item.description}</p>
+    {collection && <p className="mt-3 flex items-center gap-1.5 text-[8px] font-medium" style={{color:collection.color}}><span className="h-2 w-2 rounded-full" style={{backgroundColor:collection.color}}/>{collection.name}</p>}
+    <div className="mt-3 flex flex-wrap gap-1">{item.tags.slice(0,3).map(tag => <span key={tag} className="rounded bg-[#f5f4ea] px-1.5 py-1 text-[7px] text-[#767869]">{tag}</span>)}</div>
+    <div className="mt-3 flex items-center justify-between border-t border-[#efeee4] pt-3 text-[8px] text-[#9a9b8d]"><span>{item.visibility === "personal" ? <LockKeyhole size={10} className="mr-1 inline"/> : <Users size={10} className="mr-1 inline"/>}{item.visibility === "personal" ? "Лична" : "Споделена"}</span><span><Star size={9} className="mr-1 inline text-[#a16b24]" fill="currentColor"/>{item.rating}</span><span><CalendarDays size={10} className="mr-1 inline"/>{new Date(item.created_at).toLocaleDateString("bg-BG",{day:"2-digit",month:"short"})}</span>{item.source_url && <a href={item.source_url} target="_blank" onClick={e => e.stopPropagation()} className="text-[#52621c]" title="Източник"><ExternalLink size={11}/></a>}</div>
+  </article>;
+}
+
+function historyLabel(action: HistoryEntry["action"]) {
+  return { created: "Създадена карта", updated: "Редактирана карта", archived: "Архивирана карта", restored: "Възстановена карта" }[action];
+}
