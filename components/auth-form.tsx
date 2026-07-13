@@ -102,8 +102,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <div className="absolute inset-0 bg-gradient-to-b from-[#202319]/55 via-[#313426]/5 to-[#1f2417]/65 lg:bg-gradient-to-r lg:from-[#1d2117]/50 lg:via-transparent lg:to-[#f6f2e8]/15" />
 
         <div className="relative z-10 flex items-center gap-3 p-5 text-white sm:p-7 lg:p-10">
-          <span className="grid size-10 place-items-center rounded-xl border border-white/30 bg-white/15 shadow-sm backdrop-blur-md">
-            <Compass size={21} strokeWidth={2.2} />
+          <span className="relative grid size-12 shrink-0 place-items-center rounded-full border border-[#f4df9b]/70 bg-[radial-gradient(circle_at_32%_24%,rgba(255,255,255,.9),rgba(225,199,121,.62)_34%,rgba(85,91,47,.78)_100%)] shadow-[0_10px_30px_rgba(32,31,20,.28),inset_0_1px_1px_rgba(255,255,255,.85)] backdrop-blur-xl">
+            <span className="absolute inset-[4px] rounded-full border border-white/45" />
+            <Compass className="relative z-10 text-[#fff8dc] drop-shadow-[0_2px_3px_rgba(39,40,21,.45)]" size={24} strokeWidth={1.8} />
+            <span className="absolute left-1/2 top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#fff4bd] shadow-[0_0_8px_#fff4bd]" />
           </span>
           <div>
             <p className="text-[15px] font-semibold tracking-[-.02em]">AI Компас</p>
@@ -122,8 +124,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </div>
       </section>
 
-      <section className="relative z-20 ml-auto flex min-h-[100dvh] w-full items-center px-4 pb-8 pt-24 sm:px-8 sm:pt-28 lg:w-[47%] lg:px-[4vw] lg:py-10">
-        <div className="mx-auto w-full max-w-[430px] rounded-[26px] border border-white/55 bg-white/85 p-6 shadow-[0_28px_80px_rgba(43,40,29,.22)] backdrop-blur-2xl sm:p-9 lg:bg-[#fffef9]/90">
+      <section className="relative z-20 ml-auto flex min-h-[100dvh] w-full items-center px-4 pb-8 pt-24 sm:px-8 sm:pt-28 lg:w-[47%] lg:px-[3vw] lg:py-10">
+        <div className="mx-auto w-full max-w-[430px] rounded-[26px] border border-white/55 bg-white/85 p-6 shadow-[0_28px_80px_rgba(43,40,29,.22)] backdrop-blur-2xl sm:p-9 lg:ml-auto lg:mr-0 lg:-translate-y-5 lg:bg-[#fffef9]/90">
           <div className="mb-7 border-b border-[#dedbd0] pb-6 lg:hidden">
             <h1 className="text-[26px] font-semibold leading-[1.12] tracking-[-.04em] text-[#2d3025] sm:text-[30px]">
               Посока към <span className="text-[#64752c]">по-умна работа с AI.</span>
