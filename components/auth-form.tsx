@@ -92,7 +92,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     <div className="fixed inset-0 isolate overflow-y-auto bg-[#dedbce]">
       <section className="fixed inset-0 flex flex-col overflow-hidden bg-[#e8e5da]">
         <Image
-          src="/ai-compass-login-3d.png"
+          src="/ai-compass-login-background.png"
           alt="3D AI лаборатория на AI Компас"
           fill
           priority
