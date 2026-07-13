@@ -89,17 +89,17 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const isLogin = mode === "login";
 
   return (
-    <div className="relative grid w-full max-w-[1240px] overflow-hidden border border-[#dedbcf] bg-[#fbfaf4] shadow-[0_28px_90px_rgba(63,58,43,.12)] lg:min-h-[760px] lg:grid-cols-[1.12fr_.88fr] lg:rounded-[28px]">
-      <section className="relative flex min-h-[290px] flex-col overflow-hidden bg-[#e8e5da] sm:min-h-[360px] lg:min-h-0">
+    <div className="fixed inset-0 isolate overflow-y-auto bg-[#dedbce]">
+      <section className="fixed inset-0 flex flex-col overflow-hidden bg-[#e8e5da]">
         <Image
           src="/ai-compass-login-3d.png"
           alt="3D AI лаборатория на AI Компас"
           fill
           priority
-          sizes="(min-width: 1024px) 56vw, 100vw"
-          className="object-cover object-center"
+          sizes="100vw"
+          className="object-cover object-[42%_center] lg:object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#22251a]/45 via-transparent to-[#1f2417]/70 lg:bg-gradient-to-t lg:from-[#1d2117]/80 lg:via-transparent lg:to-[#272a20]/35" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#202319]/55 via-[#313426]/5 to-[#1f2417]/65 lg:bg-gradient-to-r lg:from-[#1d2117]/50 lg:via-transparent lg:to-[#f6f2e8]/15" />
 
         <div className="relative z-10 flex items-center gap-3 p-5 text-white sm:p-7 lg:p-10">
           <span className="grid size-10 place-items-center rounded-xl border border-white/30 bg-white/15 shadow-sm backdrop-blur-md">
@@ -111,8 +111,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
         </div>
 
-        <div className="relative z-10 mt-auto max-w-[590px] p-5 pt-12 text-white sm:p-7 lg:p-10">
-          <p className="mb-3 hidden text-[11px] font-semibold uppercase tracking-[.22em] text-[#dcecae] lg:block">Знание · Инструменти · Експерименти</p>
+        <div className="relative z-10 mt-auto hidden max-w-[590px] p-10 text-white lg:block">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.22em] text-[#dcecae]">Знание · Инструменти · Експерименти</p>
           <h1 className="max-w-[520px] text-[27px] font-semibold leading-[1.1] tracking-[-.04em] sm:text-[34px] lg:text-[46px]">
             Посока към <span className="text-[#dcecae]">по-умна работа с AI.</span>
           </h1>
@@ -122,8 +122,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </div>
       </section>
 
-      <section className="relative flex items-center bg-[rgba(255,255,255,.88)] px-5 py-9 backdrop-blur-xl sm:px-10 sm:py-12 lg:px-16 lg:py-16">
-        <div className="mx-auto w-full max-w-[420px]">
+      <section className="relative z-20 ml-auto flex min-h-[100dvh] w-full items-center px-4 pb-8 pt-24 sm:px-8 sm:pt-28 lg:w-[47%] lg:px-[4vw] lg:py-10">
+        <div className="mx-auto w-full max-w-[430px] rounded-[26px] border border-white/55 bg-white/85 p-6 shadow-[0_28px_80px_rgba(43,40,29,.22)] backdrop-blur-2xl sm:p-9 lg:bg-[#fffef9]/90">
+          <div className="mb-7 border-b border-[#dedbd0] pb-6 lg:hidden">
+            <h1 className="text-[26px] font-semibold leading-[1.12] tracking-[-.04em] text-[#2d3025] sm:text-[30px]">
+              Посока към <span className="text-[#64752c]">по-умна работа с AI.</span>
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-[#6e6c62]">
+              Вътрешна платформа за знания, инструменти и експерименти.
+            </p>
+          </div>
           <div className="mb-8 lg:mb-10">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.18em] text-[#667530]">
               {isLogin ? "Защитен фирмен достъп" : "Фирмена покана"}
