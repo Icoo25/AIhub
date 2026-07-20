@@ -113,7 +113,7 @@ export async function convertInboxItem(item: KnowledgeItem, target: InboxTarget,
     if (!item.source_url) throw new Error("За източник е необходим уеб адрес.");
     const existing = item.source_id ? await getSource(item.source_id) : null;
     const saved = existing || await saveSource({ name: item.title, url: item.source_url, handle: extractSourceHandle(item.source_url), source_type: detectSourceType(item.source_url), category: options.category || "Общи", description: item.description, reliability: options.reliability || 3, status: "Активен", last_checked_at: new Date().toISOString().slice(0, 10) });
-    return saveKnowledgeItem({ ...item, source_id: saved.id, status: "Обработено", archived_at: new Date().toISOString(), metadata: { ...(item.metadata || {}), processed_to: { type: "source", id: saved.id } } });
+    return saveKnowledgeItem({ ...item, source_id: saved.id, category: options.category || item.category || "Източници", content_type: "source", status: "За преглед", read_state: "reading", archived_at: null, metadata: { ...(item.metadata || {}), processed_to: { type: "source", id: saved.id } } });
   }
 
   let targetId = "";
