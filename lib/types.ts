@@ -1,5 +1,32 @@
 export type ToolStatus = "Активен" | "В тестване" | "Архивиран";
-export interface AITool { id: string; name: string; category: string; description: string; website_url: string; status: ToolStatus; rating: number; created_at: string; is_favorite?: boolean; }
+export type ToolApprovalStatus = "За оценка" | "Одобрен" | "Ограничен" | "Забранен";
+export type ToolDataRisk = "Неоценен" | "Нисък" | "Среден" | "Висок";
+export type ToolPricingModel = "Безплатен" | "Freemium" | "Платен" | "По запитване";
+export interface AITool {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  website_url: string;
+  status: ToolStatus;
+  rating: number;
+  created_at: string;
+  is_favorite?: boolean;
+  pricing_model?: ToolPricingModel;
+  price_details?: string;
+  approval_status?: ToolApprovalStatus;
+  data_risk?: ToolDataRisk;
+  use_cases?: string[];
+  strengths?: string;
+  limitations?: string;
+  supported_languages?: string;
+  owner_id?: string | null;
+  last_reviewed_at?: string | null;
+  notes?: string;
+  updated_at?: string;
+}
+export type CategoryEntityType = "tool" | "news" | "knowledge" | "experiment";
+export interface ContentCategory { id: string; name: string; description: string; color: string; applies_to: CategoryEntityType[]; active: boolean; position: number; created_at: string; updated_at?: string; }
 export interface AINews { id: string; title: string; summary: string; source_url: string; category: string; published_date: string; created_at: string; }
 export type ExperimentStatus = "Идея" | "Планиран" | "В процес" | "Завършен" | "За внедряване" | "Отхвърлен";
 export interface Experiment {
