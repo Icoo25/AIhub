@@ -29,15 +29,18 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [mobile, setMobile] = useState(false);
-  const [globalQuery, setGlobalQuery] = useState("");
   const [accountMenu, setAccountMenu] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const profile = useAuthProfile();
   const visibleNavigation = useMemo(() => canManageTeam(profile.role) ? [...navigation, { href: "/team", label: "Екип и роли", icon: Users }] : navigation, [profile.role]);
-  const commands = useMemo(() => [...visibleNavigation, ...(canContributeKnowledge(profile.role) ? [{ href: "/inbox?new=1", label: "Добави съдържание", icon: Plus }, { href: "/import", label: "Импорт от URL, RSS или Trello", icon: Inbox }] : []), { href: "/settings", label: "Настройки", icon: Settings }]
-    .filter(item => item.label.toLowerCase().includes(commandQuery.toLowerCase())), [visibleNavigation, profile.role, commandQuery]);
+  const commands = useMemo(() => {
+    const normalizedQuery = commandQuery.trim().toLocaleLowerCase("bg-BG");
+    const actions = [...visibleNavigation, ...(canContributeKnowledge(profile.role) ? [{ href: "/inbox?new=1", label: "Добави съдържание", icon: Plus }, { href: "/import", label: "Импорт от URL, RSS или Trello", icon: Inbox }] : []), { href: "/settings", label: "Настройки", icon: Settings }]
+      .filter(item => !normalizedQuery || item.label.toLocaleLowerCase("bg-BG").includes(normalizedQuery));
+    return normalizedQuery ? [{ href: `/search?q=${encodeURIComponent(commandQuery.trim())}`, label: `Търси навсякъде за „${commandQuery.trim()}“`, icon: Search }, ...actions] : actions;
+  }, [visibleNavigation, profile.role, commandQuery]);
 
   useEffect(() => {
     const closeAccountMenu = (event: MouseEvent) => {
@@ -49,12 +52,12 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const shortcuts = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setCommandOpen(true); }
+      if ((event.ctrlKey || event.metaKey) && (event.code === "KeyK" || event.key.toLowerCase() === "k")) { event.preventDefault(); event.stopPropagation(); setCommandOpen(true); }
       if (canContributeKnowledge(profile.role) && event.key.toLowerCase() === "n" && !event.ctrlKey && !event.metaKey && !["INPUT", "TEXTAREA", "SELECT"].includes((event.target as HTMLElement).tagName)) { event.preventDefault(); router.push("/inbox?new=1"); }
       if (event.key === "Escape") setCommandOpen(false);
     };
-    window.addEventListener("keydown", shortcuts);
-    return () => window.removeEventListener("keydown", shortcuts);
+    document.addEventListener("keydown", shortcuts, true);
+    return () => document.removeEventListener("keydown", shortcuts, true);
   }, [router, profile.role]);
 
   const logout = async () => { setAccountMenu(false); clearDataCache(); await createClient()?.auth.signOut(); router.push("/login"); router.refresh(); };
@@ -71,7 +74,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     <div className="lg:pl-[232px]">
       <header className="sticky top-0 z-20 flex h-14 items-center border-b border-[#efeee4] bg-[#fbfaf0]/95 px-4 backdrop-blur-md sm:px-7">
         <button className="mr-3 rounded-lg p-2 text-[#46483b] lg:hidden" onClick={() => setMobile(true)}><Menu size={19}/></button>
-        <form onSubmit={e => { e.preventDefault(); if (globalQuery.trim()) router.push(`/search?q=${encodeURIComponent(globalQuery.trim())}`); }} className="relative hidden w-full max-w-[380px] sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={15}/><input className="w-full rounded-full border-0 bg-[#f1f0e6] py-2.5 pl-9 pr-20 text-sm outline-none ring-[#52621c]/20 focus:ring-2" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder="Търсене навсякъде..."/><button type="button" onClick={() => setCommandOpen(true)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[#d7d6ca] bg-white px-2 py-1 text-[9px] text-[#767869]">Ctrl K</button></form>
+        <button type="button" onClick={() => setCommandOpen(true)} className="group relative hidden w-full max-w-[380px] items-center rounded-full bg-[#f1f0e6] py-2.5 pl-9 pr-20 text-left text-sm text-[#9a9b8d] outline-none ring-[#52621c]/20 transition hover:bg-[#eeede2] focus:ring-2 sm:flex"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={15}/><span>Търсене навсякъде...</span><kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[#d7d6ca] bg-white px-2 py-1 text-[9px] text-[#767869]">Ctrl K</kbd></button>
         <div className="ml-auto flex items-center gap-3">
           {isDemo && <span className="hidden rounded-full bg-[#fff1c7] px-2.5 py-1 text-[9px] font-semibold text-[#6d5b20] sm:inline">ДЕМО ДАННИ</span>}
           {canContributeKnowledge(profile.role) && <div className="group relative hidden sm:block"><Link href="/inbox?new=1" aria-label="Бързо добавяне" className="grid h-9 w-9 place-items-center rounded-full bg-[#52621c] text-white shadow-[0_5px_14px_rgba(82,98,28,.2)] transition hover:-translate-y-0.5 hover:bg-[#445217] hover:shadow-[0_8px_20px_rgba(82,98,28,.28)]"><Plus size={17}/></Link><span className="pointer-events-none absolute right-0 top-[calc(100%+9px)] z-50 hidden whitespace-nowrap rounded-lg bg-[#1b1c16] px-3 py-2 text-xs font-medium text-white shadow-lg group-hover:block">Бързо добавяне <kbd className="ml-1 rounded bg-white/15 px-1.5 py-0.5">N</kbd></span></div>}
