@@ -8,11 +8,12 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${styles[tone]}`}>{children}</span>;
 }
 
-export function Modal({ open, title, subtitle, onClose, children }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ open, title, subtitle, onClose, children, size = "md" }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode; size?: "md" | "lg" | "xl" }) {
   useDialogLifecycle(open, onClose);
   if (!open) return null;
+  const width = size === "xl" ? "max-w-4xl" : size === "lg" ? "max-w-2xl" : "max-w-xl";
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1b1c16]/35 p-3 backdrop-blur-sm sm:p-4" onMouseDown={onClose}>
-    <div role="dialog" aria-modal="true" aria-labelledby="modal-title" className="panel max-h-[94dvh] w-full max-w-xl overflow-y-auto bg-[#fbfaf0] p-5 shadow-[0_24px_80px_rgba(27,28,22,.2)] sm:p-6" onMouseDown={e => e.stopPropagation()}>
+    <div role="dialog" aria-modal="true" aria-labelledby="modal-title" className={`panel max-h-[92dvh] w-full ${width} overflow-y-auto bg-[#fbfaf0] p-5 shadow-[0_24px_80px_rgba(27,28,22,.2)] sm:p-6`} onMouseDown={e => e.stopPropagation()}>
       <div className="mb-6 flex items-start justify-between gap-4"><div><h2 id="modal-title" className="text-xl font-semibold text-[#1b1c16]">{title}</h2>{subtitle && <p className="mt-1 text-sm text-[#767869]">{subtitle}</p>}</div><button aria-label="Затвори" onClick={onClose} className="rounded-lg p-2 text-[#767869] hover:bg-[#efeee4] hover:text-[#1b1c16]"><X size={18}/></button></div>
       {children}
     </div>
