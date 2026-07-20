@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Beaker, Bell, BookOpen, Bot, ChevronDown, Compass, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Search, Settings, Users, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Beaker, Bell, BookOpen, Bot, ChevronDown, Compass, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Rss, Search, Settings, Users, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { isDemo } from "@/lib/data";
+import { clearDataCache, isDemo } from "@/lib/data";
 import { AuthProvider, useAuthProfile } from "@/lib/auth-context";
 import { ConfirmationProvider } from "@/components/ui";
 import { canContributeKnowledge, canManageTeam, roleLabel } from "@/lib/permissions";
@@ -14,6 +14,7 @@ import { CommandPalette } from "@/components/command-palette";
 const navigation = [
   { href: "/", label: "Общ преглед", icon: LayoutDashboard },
   { href: "/inbox", label: "Входящи", icon: Inbox },
+  { href: "/sources", label: "Източници", icon: Rss },
   { href: "/library", label: "AI библиотека", icon: BookOpen },
   { href: "/tools", label: "AI инструменти", icon: Bot },
   { href: "/news", label: "Инфо поток", icon: Newspaper },
@@ -34,9 +35,9 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   const [commandQuery, setCommandQuery] = useState("");
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const profile = useAuthProfile();
-  const visibleNavigation = canManageTeam(profile.role) ? [...navigation, { href: "/team", label: "Екип и роли", icon: Users }] : navigation;
-  const commands = [...visibleNavigation, ...(canContributeKnowledge(profile.role) ? [{ href: "/inbox?new=1", label: "Добави съдържание", icon: Plus }, { href: "/import", label: "Импорт от URL, RSS или Trello", icon: Inbox }] : []), { href: "/settings", label: "Настройки", icon: Settings }]
-    .filter(item => item.label.toLowerCase().includes(commandQuery.toLowerCase()));
+  const visibleNavigation = useMemo(() => canManageTeam(profile.role) ? [...navigation, { href: "/team", label: "Екип и роли", icon: Users }] : navigation, [profile.role]);
+  const commands = useMemo(() => [...visibleNavigation, ...(canContributeKnowledge(profile.role) ? [{ href: "/inbox?new=1", label: "Добави съдържание", icon: Plus }, { href: "/import", label: "Импорт от URL, RSS или Trello", icon: Inbox }] : []), { href: "/settings", label: "Настройки", icon: Settings }]
+    .filter(item => item.label.toLowerCase().includes(commandQuery.toLowerCase())), [visibleNavigation, profile.role, commandQuery]);
 
   useEffect(() => {
     const closeAccountMenu = (event: MouseEvent) => {
@@ -56,7 +57,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", shortcuts);
   }, [router, profile.role]);
 
-  const logout = async () => { setAccountMenu(false); await createClient()?.auth.signOut(); router.push("/login"); router.refresh(); };
+  const logout = async () => { setAccountMenu(false); clearDataCache(); await createClient()?.auth.signOut(); router.push("/login"); router.refresh(); };
 
   return <div className="min-h-screen bg-[#fbfaf0]">
     {mobile && <button aria-label="Затвори менюто" className="fixed inset-0 z-30 bg-[#1b1c16]/25 lg:hidden" onClick={() => setMobile(false)}/>} 
@@ -65,10 +66,10 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
         <Link href="/" className="flex items-center gap-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-[#52621c] text-white"><Compass size={17}/></span><span><strong className="block text-[13px] font-semibold leading-none text-[#1b1c16]">AI Компас</strong><span className="mt-1 block text-[8px] font-medium uppercase tracking-[.16em] text-[#767869]">Вътрешна AI платформа</span></span></Link>
         <button className="text-[#767869] lg:hidden" onClick={() => setMobile(false)}><X size={18}/></button>
       </div>
-      <nav className="space-y-1">{visibleNavigation.map(item => { const active = path === item.href; const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={() => setMobile(false)} className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[12px] font-medium transition ${active ? "bg-[#e9edda] text-[#52621c]" : "text-[#46483b] hover:bg-[#efeee4]"}`}><Icon size={15}/><span>{item.label}</span>{active && <span className="absolute right-0 h-5 w-[2px] rounded-full bg-[#52621c]"/>}</Link>})}</nav>
+      <nav className="space-y-1">{visibleNavigation.map(item => { const active = path === item.href || (item.href !== "/" && path.startsWith(`${item.href}/`)); const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={() => setMobile(false)} className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[12px] font-medium transition ${active ? "bg-[#e9edda] text-[#52621c]" : "text-[#46483b] hover:bg-[#efeee4]"}`}><Icon size={15}/><span>{item.label}</span>{active && <span className="absolute right-0 h-5 w-[2px] rounded-full bg-[#52621c]"/>}</Link>})}</nav>
     </aside>
     <div className="lg:pl-[232px]">
-      <header className="sticky top-0 z-20 flex h-14 items-center border-b border-[#efeee4] bg-[#fbfaf0]/90 px-4 backdrop-blur-xl sm:px-7">
+      <header className="sticky top-0 z-20 flex h-14 items-center border-b border-[#efeee4] bg-[#fbfaf0]/95 px-4 backdrop-blur-md sm:px-7">
         <button className="mr-3 rounded-lg p-2 text-[#46483b] lg:hidden" onClick={() => setMobile(true)}><Menu size={19}/></button>
         <form onSubmit={e => { e.preventDefault(); if (globalQuery.trim()) router.push(`/search?q=${encodeURIComponent(globalQuery.trim())}`); }} className="relative hidden w-full max-w-[380px] sm:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9a9b8d]" size={15}/><input className="w-full rounded-full border-0 bg-[#f1f0e6] py-2.5 pl-9 pr-20 text-sm outline-none ring-[#52621c]/20 focus:ring-2" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder="Търсене навсякъде..."/><button type="button" onClick={() => setCommandOpen(true)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[#d7d6ca] bg-white px-2 py-1 text-[9px] text-[#767869]">Ctrl K</button></form>
         <div className="ml-auto flex items-center gap-3">
@@ -91,7 +92,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto max-w-[1320px] p-4 pb-24 sm:p-7 sm:pb-24 lg:p-8">{children}</main>
     </div>
-    <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[#e4e3d9] bg-[#fbfaf0]/95 px-2 py-2 backdrop-blur-xl lg:hidden">{navigation.slice(0,5).map(item => { const Icon = item.icon; const active = path === item.href; return <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 rounded-lg py-1.5 text-[9px] font-medium ${active ? "bg-[#52621c] text-white" : "text-[#767869]"}`}><Icon size={16}/><span>{item.label.replace("AI ", "")}</span></Link>})}</nav>
+    <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[#e4e3d9] bg-[#fbfaf0]/[.98] px-2 py-2 lg:hidden">{navigation.slice(0,5).map(item => { const Icon = item.icon; const active = path === item.href; return <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-1 rounded-lg py-1.5 text-[9px] font-medium ${active ? "bg-[#52621c] text-white" : "text-[#767869]"}`}><Icon size={16}/><span>{item.label.replace("AI ", "")}</span></Link>})}</nav>
     <CommandPalette open={commandOpen} items={commands} query={commandQuery} onQueryChange={setCommandQuery} onClose={() => setCommandOpen(false)}/>
   </div>;
 }

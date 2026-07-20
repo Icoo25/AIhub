@@ -10,6 +10,7 @@ import { canEditContent } from "@/lib/permissions";
 import { ToolIcon } from "./tool-icon";
 import { ToolRating } from "./tool-rating";
 import { Badge, EmptyState } from "./ui";
+import { SourceAttribution } from "./source-attribution";
 
 export function ToolDetailView({ id }: { id: string }) {
   const { role } = useAuthProfile();
@@ -24,6 +25,7 @@ export function ToolDetailView({ id }: { id: string }) {
       <div className="grid gap-0 sm:grid-cols-3"><Summary label="Фирмено решение" value={tool.approval_status || "За оценка"} icon={<ShieldCheck size={17}/>}/><Summary label="Ценови модел" value={[tool.pricing_model, tool.price_details].filter(Boolean).join(" · ") || "Не е посочен"} icon={<WalletCards size={17}/>}/><Summary label="Последен преглед" value={tool.last_reviewed_at ? new Date(tool.last_reviewed_at).toLocaleDateString("bg-BG") : "Не е преглеждан"} icon={<CalendarDays size={17}/>}/></div>
     </section>
     <div className="grid gap-5 lg:grid-cols-3"><section className="panel p-5 lg:col-span-2"><h2 className="text-base font-semibold text-[#25271f]">Практическа оценка</h2><div className="mt-5 grid gap-5 sm:grid-cols-2"><TextBlock title="Силни страни" value={tool.strengths}/><TextBlock title="Ограничения" value={tool.limitations}/><TextBlock title="Поддържани езици" value={tool.supported_languages}/><TextBlock title="Риск за фирмени данни" value={tool.data_risk || "Неоценен"}/></div></section><section className="panel p-5"><h2 className="text-base font-semibold text-[#25271f]">Подходящ за</h2>{tool.use_cases?.length ? <div className="mt-4 flex flex-wrap gap-2">{tool.use_cases.map(value => <span key={value} className="rounded-full border border-[#dce1c8] bg-[#f3f5e8] px-3 py-1.5 text-xs text-[#596638]">{value}</span>)}</div> : <p className="mt-4 text-sm text-[#838579]">Няма добавени приложения.</p>}</section></div>
+    <SourceAttribution sourceId={tool.source_id}/>
     {tool.notes && <section className="panel p-5"><h2 className="text-base font-semibold text-[#25271f]">Вътрешни бележки</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-[#686a5d]">{tool.notes}</p></section>}
   </div>;
 }

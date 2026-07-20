@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Beaker, BookOpen, CheckCircle2, CheckSquare, ExternalLink, FileText, Inbox, Lightbulb, Link2, Newspaper, Plus, Search, Sparkles, Trash2, Video, WandSparkles, Wrench } from "lucide-react";
-import { attachInboxToExisting, convertInboxItem, deleteKnowledgeItem, getContentCategories, getExperimentSummaries, getInboxItems, getKnowledgeItems, getNews, getTools, saveKnowledgeItem, type InboxTarget } from "@/lib/data";
-import type { AINews, AITool, ContentCategory, EntityType, Experiment, KnowledgeContentType, KnowledgeItem } from "@/lib/types";
+import { attachInboxToExisting, convertInboxItem, deleteKnowledgeItem, getContentCategories, getExperimentSummaries, getInboxItems, getKnowledgeItems, getNews, getSources, getTools, saveKnowledgeItem, type InboxTarget } from "@/lib/data";
+import type { AINews, AITool, ContentCategory, ContentSource, EntityType, Experiment, KnowledgeContentType, KnowledgeItem } from "@/lib/types";
 import { findContentDuplicates, type DuplicateCandidate } from "@/lib/duplicates";
+import { findMatchingSource } from "@/lib/sources";
 import { useAuthProfile } from "@/lib/auth-context";
 import { canContributeKnowledge } from "@/lib/permissions";
 import { Modal, useConfirmAction } from "./ui";
 
 type CaptureMode = "text" | "url";
 type Preview = { title: string; summary: string; url: string; image?: string };
-type Draft = { title: string; description: string; source_url: string; category: string; content_type: KnowledgeContentType; priority: KnowledgeItem["priority"]; preview_image?: string };
+type Draft = { title: string; description: string; source_url: string; category: string; content_type: KnowledgeContentType; priority: KnowledgeItem["priority"]; preview_image?: string; source_id?: string | null };
 const blank: Draft = { title: "", description: "", source_url: "", category: "Бележки", content_type: "note", priority: "Среден" };
 const contentTypes: Array<{ value: KnowledgeContentType; label: string }> = [
   { value: "note", label: "Бележка" }, { value: "idea", label: "Идея" }, { value: "source", label: "Източник" },
@@ -30,6 +31,7 @@ export function InboxView() {
   const [news, setNews] = useState<AINews[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [managedCategories, setManagedCategories] = useState<ContentCategory[]>([]);
+  const [sources, setSources] = useState<ContentSource[]>([]);
   const [draft, setDraft] = useState<Draft>(blank);
   const [mode, setMode] = useState<CaptureMode>("text");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -44,8 +46,8 @@ export function InboxView() {
   const deferredQuery = useDeferredValue(query);
 
   const load = async () => {
-    const [inbox, allKnowledge, allTools, allNews, allExperiments, categories] = await Promise.all([getInboxItems(), getKnowledgeItems(), getTools(), getNews(), getExperimentSummaries(), getContentCategories()]);
-    setItems(inbox); setKnowledge(allKnowledge); setTools(allTools); setNews(allNews); setExperiments(allExperiments); setManagedCategories(categories);
+    const [inbox, allKnowledge, allTools, allNews, allExperiments, categories, allSources] = await Promise.all([getInboxItems(), getKnowledgeItems(), getTools(), getNews(), getExperimentSummaries(), getContentCategories(), getSources()]);
+    setItems(inbox); setKnowledge(allKnowledge); setTools(allTools); setNews(allNews); setExperiments(allExperiments); setManagedCategories(categories); setSources(allSources);
   };
   useEffect(() => { load().catch(() => setNotice("Входящите записи не успяха да се заредят.")); }, []);
 
@@ -63,7 +65,8 @@ export function InboxView() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       const next: Preview = { title: data.title || draft.source_url, summary: data.summary || "Страницата няма описание.", url: data.url || draft.source_url, image: data.image };
-      setPreview(next); setDraft(current => ({ ...current, title: next.title, description: next.summary, source_url: next.url, preview_image: next.image, content_type: current.content_type === "note" ? "source" : current.content_type, category: current.category === "Бележки" ? "Източници" : current.category }));
+      const matchedSource = findMatchingSource(next.url, sources);
+      setPreview(next); setDraft(current => ({ ...current, title: next.title, description: next.summary, source_url: next.url, preview_image: next.image, source_id: matchedSource?.id || null, content_type: current.content_type === "note" ? "source" : current.content_type, category: current.category === "Бележки" ? "Източници" : current.category }));
     } catch (error) { setNotice(error instanceof Error ? error.message : "Адресът не можа да бъде прегледан."); }
     finally { setInspecting(false); }
   }
@@ -72,7 +75,7 @@ export function InboxView() {
     event.preventDefault(); if (!canEdit) return;
     setBusy(true); setNotice("");
     try {
-      const saved = await saveKnowledgeItem({ title: draft.title || "Нов входящ запис", description: draft.description, source_url: draft.source_url, category: draft.category, status: "Входящи", priority: draft.priority, rating: 0, tags: [contentTypes.find(item => item.value === draft.content_type)?.label || "Входящи"], notes: "", visibility: "shared", content_type: draft.content_type, read_state: "unread", metadata: { captured_at: new Date().toISOString(), capture_mode: mode, preview_image: draft.preview_image || null } });
+      const saved = await saveKnowledgeItem({ title: draft.title || "Нов входящ запис", description: draft.description, source_url: draft.source_url, category: draft.category, status: "Входящи", priority: draft.priority, rating: 0, tags: [contentTypes.find(item => item.value === draft.content_type)?.label || "Входящи"], notes: "", visibility: "shared", content_type: draft.content_type, read_state: "unread", source_id: draft.source_id || null, metadata: { captured_at: new Date().toISOString(), capture_mode: mode, preview_image: draft.preview_image || null } });
       if (saved) { setItems(current => [saved, ...current]); setKnowledge(current => [saved, ...current]); }
       setDraft(blank); setPreview(null); setNotice("Записът е добавен във Входящи и чака твоя преглед.");
     } catch { setNotice("Записът не беше добавен. Проверете данните и опитайте отново."); }
@@ -131,7 +134,7 @@ export function InboxView() {
     {canEdit && <section className="panel overflow-hidden"><div className="border-b border-line bg-[#f7f6ec] px-5 py-4 sm:px-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[#34362d]">Бърз запис</h2><p className="mt-1 text-[11px] text-[#7b7d70]">Постави адрес или запиши нещо, преди да си го забравил.</p></div><div className="flex rounded-xl border border-line bg-white p-1"><button type="button" onClick={() => { setMode("text"); setPreview(null); }} className={`rounded-lg px-3 py-2 text-xs ${mode === "text" ? "bg-[#e9edda] text-[#52621c]" : "text-[#767869]"}`}><FileText size={14} className="mr-2 inline"/>Текст</button><button type="button" onClick={() => { setMode("url"); setDraft(current => ({ ...current, content_type: "source", category: "Източници" })); }} className={`rounded-lg px-3 py-2 text-xs ${mode === "url" ? "bg-[#e9edda] text-[#52621c]" : "text-[#767869]"}`}><Link2 size={14} className="mr-2 inline"/>URL</button></div></div></div>
       <form onSubmit={add} className="space-y-4 p-5 sm:p-6">
         {mode === "url" && <div className="flex flex-col gap-2 sm:flex-row"><input required type="url" autoFocus className="field flex-1" placeholder="https://..." value={draft.source_url} onChange={e => { setDraft({ ...draft, source_url: e.target.value }); setPreview(null); }}/><button type="button" disabled={inspecting || !draft.source_url} onClick={inspectUrl} className="btn-secondary"><WandSparkles size={14}/>{inspecting ? "Извличане..." : "Прегледай адреса"}</button></div>}
-        {preview && <div className="flex gap-4 rounded-xl border border-[#dce1c8] bg-[#f5f7eb] p-4">{preview.image ? <img src={preview.image} alt="" className="h-16 w-20 rounded-lg object-cover"/> : <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-white text-[#748248]"><Link2 size={20}/></span>}<div className="min-w-0"><p className="text-xs font-semibold text-[#34362d]">{preview.title}</p><p className="mt-1 line-clamp-2 text-[11px] text-[#767869]">{preview.summary}</p><p className="mt-1 truncate text-[9px] text-[#989a8d]">{preview.url}</p></div></div>}
+        {preview && <div className="flex gap-4 rounded-xl border border-[#dce1c8] bg-[#f5f7eb] p-4">{preview.image ? <img src={preview.image} alt="" className="h-16 w-20 rounded-lg object-cover"/> : <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-white text-[#748248]"><Link2 size={20}/></span>}<div className="min-w-0 flex-1"><p className="text-xs font-semibold text-[#34362d]">{preview.title}</p><p className="mt-1 line-clamp-2 text-[11px] text-[#767869]">{preview.summary}</p><p className="mt-1 truncate text-[9px] text-[#989a8d]">{preview.url}</p><p className={`mt-2 text-[10px] font-semibold ${draft.source_id ? "text-[#596638]" : "text-[#8a6a34]"}`}>{draft.source_id ? `Разпознат източник: ${sources.find(item => item.id === draft.source_id)?.name || "Източник"}` : "Няма регистриран източник за този адрес."}</p></div></div>}
         <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs text-[#67695d]">Заглавие<input required className="field mt-2" placeholder="Какво запазваме?" value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })}/></label><label className="text-xs text-[#67695d]">Тип<select className="field mt-2" value={draft.content_type} onChange={e => setDraft({ ...draft, content_type: e.target.value as KnowledgeContentType })}>{contentTypes.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label></div>
         <textarea className="field min-h-20 resize-y" placeholder="Кратко описание или твоя бележка..." value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })}/>
         <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto]"><input required className="field" placeholder="Категория" value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })}/><select className="field" value={draft.priority} onChange={e => setDraft({ ...draft, priority: e.target.value as KnowledgeItem["priority"] })}><option>Нисък</option><option>Среден</option><option>Висок</option></select><button disabled={busy} className="btn-primary"><Plus size={14}/>{busy ? "Добавяне..." : "Добави"}</button></div>
