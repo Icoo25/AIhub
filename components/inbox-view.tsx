@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, Beaker, BookOpen, CheckCircle2, CheckSquare, ExternalLink, FileText, Inbox, Lightbulb, Link2, Newspaper, Plus, Search, Sparkles, Trash2, Video, WandSparkles, Wrench } from "lucide-react";
-import { attachInboxToExisting, convertInboxItem, deleteKnowledgeItem, getExperimentSummaries, getInboxItems, getKnowledgeItems, getNews, getTools, saveKnowledgeItem, type InboxTarget } from "@/lib/data";
-import type { AINews, AITool, EntityType, Experiment, KnowledgeContentType, KnowledgeItem } from "@/lib/types";
+import { attachInboxToExisting, convertInboxItem, deleteKnowledgeItem, getContentCategories, getExperimentSummaries, getInboxItems, getKnowledgeItems, getNews, getTools, saveKnowledgeItem, type InboxTarget } from "@/lib/data";
+import type { AINews, AITool, ContentCategory, EntityType, Experiment, KnowledgeContentType, KnowledgeItem } from "@/lib/types";
 import { findContentDuplicates, type DuplicateCandidate } from "@/lib/duplicates";
 import { useAuthProfile } from "@/lib/auth-context";
 import { canContributeKnowledge } from "@/lib/permissions";
-import { Drawer, useConfirmAction } from "./ui";
+import { Modal, useConfirmAction } from "./ui";
 
 type CaptureMode = "text" | "url";
 type Preview = { title: string; summary: string; url: string; image?: string };
@@ -29,6 +29,7 @@ export function InboxView() {
   const [tools, setTools] = useState<AITool[]>([]);
   const [news, setNews] = useState<AINews[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [managedCategories, setManagedCategories] = useState<ContentCategory[]>([]);
   const [draft, setDraft] = useState<Draft>(blank);
   const [mode, setMode] = useState<CaptureMode>("text");
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -43,14 +44,15 @@ export function InboxView() {
   const deferredQuery = useDeferredValue(query);
 
   const load = async () => {
-    const [inbox, allKnowledge, allTools, allNews, allExperiments] = await Promise.all([getInboxItems(), getKnowledgeItems(), getTools(), getNews(), getExperimentSummaries()]);
-    setItems(inbox); setKnowledge(allKnowledge); setTools(allTools); setNews(allNews); setExperiments(allExperiments);
+    const [inbox, allKnowledge, allTools, allNews, allExperiments, categories] = await Promise.all([getInboxItems(), getKnowledgeItems(), getTools(), getNews(), getExperimentSummaries(), getContentCategories()]);
+    setItems(inbox); setKnowledge(allKnowledge); setTools(allTools); setNews(allNews); setExperiments(allExperiments); setManagedCategories(categories);
   };
   useEffect(() => { load().catch(() => setNotice("Входящите записи не успяха да се заредят.")); }, []);
 
   const duplicateData = useMemo(() => ({ tools, news, knowledge, experiments }), [tools, news, knowledge, experiments]);
   const captureDuplicates = useMemo(() => findContentDuplicates({ title: draft.title, source_url: draft.source_url }, duplicateData), [draft.title, draft.source_url, duplicateData]);
   const processingDuplicates = useMemo(() => processing ? findContentDuplicates(processing, duplicateData) : [], [processing, duplicateData]);
+  const targetCategories = useMemo(() => categoriesForTarget(target, knowledge, tools, news, managedCategories), [target, knowledge, tools, news, managedCategories]);
   const shown = useMemo(() => items.filter(item => `${item.title} ${item.description} ${item.category} ${item.tags.join(" ")}`.toLocaleLowerCase("bg-BG").includes(deferredQuery.toLocaleLowerCase("bg-BG"))), [items, deferredQuery]);
 
   async function inspectUrl() {
@@ -87,6 +89,13 @@ export function InboxView() {
   function startProcess(item: KnowledgeItem) {
     setProcessing({ ...item }); setTarget("library");
     setProcessOptions({ category: item.category === "Бележки" ? "Идеи" : item.category || "Източници", contentType: item.content_type || (item.source_url ? "source" : "note") });
+  }
+
+  function chooseTarget(nextTarget: InboxTarget) {
+    const options = categoriesForTarget(nextTarget, knowledge, tools, news, managedCategories);
+    setTarget(nextTarget);
+    if (nextTarget === "experiment") return;
+    setProcessOptions(current => ({ ...current, category: options.includes(processing?.category || "") ? processing?.category || options[0] : options[0] || processing?.category || current.category }));
   }
 
   async function completeProcess(event: React.FormEvent) {
@@ -136,17 +145,16 @@ export function InboxView() {
       <div className="space-y-2">{shown.map(item => <article key={item.id} className="panel flex flex-col gap-4 p-4 sm:flex-row sm:items-start"><div className="flex min-w-0 flex-1 items-start gap-4"><input aria-label={`Избери ${item.title}`} type="checkbox" className="mt-1 h-4 w-4 accent-[#52621c]" checked={selected.includes(item.id)} onChange={e => setSelected(current => e.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))}/><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#e9edda] text-[#52621c]">{item.source_url ? <Link2 size={15}/> : item.content_type === "idea" ? <Lightbulb size={15}/> : <FileText size={15}/>}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">{item.title}</h2><span className="rounded-full bg-[#f5f4ea] px-2 py-1 text-[10px] text-[#767869]">{item.category}</span><span className="rounded-full bg-[#f1edf4] px-2 py-1 text-[10px] text-[#67558d]">{contentTypes.find(type => type.value === item.content_type)?.label || "Ресурс"}</span></div><p className="mt-1 line-clamp-2 text-sm leading-relaxed text-[#767869]">{item.description || "Без допълнително описание"}</p>{item.source_url && <p className="mt-1 truncate text-[10px] text-[#9a9b8d]">{safeHost(item.source_url)}</p>}</div></div>{canEdit && <button onClick={() => startProcess(item)} className="btn-secondary shrink-0 self-end sm:self-center"><Sparkles size={14}/>Обработи</button>}</article>)}{!shown.length && <div className="panel py-16 text-center"><Inbox className="mx-auto text-[#9a9b8d]"/><h2 className="mt-3 text-base font-semibold">Входящите са празни</h2><p className="mt-1 text-sm text-[#767869]">Добавете линк или бележка, за да започнете.</p></div>}</div>
     </section>
 
-    <Drawer open={Boolean(processing) && canEdit} onClose={() => setProcessing(null)} title="Обработване на запис" subtitle="Прегледай, допълни и избери правилното място.">
+    <Modal open={Boolean(processing) && canEdit} onClose={() => setProcessing(null)} title="Обработване на запис" subtitle="Прегледай, допълни и избери правилното място." size="xl">
       {processing && <form onSubmit={completeProcess} className="space-y-5">
-        <div className="rounded-xl border border-line bg-[#f7f6ec] p-4"><label className="text-xs text-[#67695d]">Заглавие<input required className="field mt-2" value={processing.title} onChange={e => setProcessing({ ...processing, title: e.target.value })}/></label><label className="mt-3 block text-xs text-[#67695d]">Описание<textarea rows={4} className="field mt-2 resize-y" value={processing.description} onChange={e => setProcessing({ ...processing, description: e.target.value })}/></label>{processing.source_url && <a href={processing.source_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#65763e]">Отвори източника <ExternalLink size={12}/></a>}</div>
-        {processingDuplicates.length > 0 && <div><DuplicateNotice items={processingDuplicates} action={useExisting}/></div>}
-        <div><p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#85877a]">Къде да отиде?</p><div className="grid grid-cols-2 gap-2">{([{ id: "library", label: "AI Библиотека", icon: BookOpen }, { id: "tool", label: "AI инструмент", icon: Wrench }, { id: "news", label: "Новина", icon: Newspaper }, { id: "experiment", label: "Експеримент", icon: Beaker }] as const).map(option => { const Icon = option.icon; return <button type="button" key={option.id} onClick={() => setTarget(option.id)} className={`flex items-center gap-2 rounded-xl border p-3 text-left text-xs font-semibold transition ${target === option.id ? "border-[#75843b] bg-[#f0f4df] text-[#52621c]" : "border-[#e4e3d9] bg-white text-[#67685e] hover:border-[#c6c8b6]"}`}><Icon size={16}/>{option.label}</button>; })}</div></div>
-        {(target === "tool" || target === "news") && !processing.source_url && <p className="rounded-xl border border-[#f0c9a8] bg-[#fff6ec] p-3 text-xs text-[#8a4d20]">За инструмент или новина е необходим уеб адрес.</p>}
-        <label className="block text-xs text-[#767869]">Категория<input required className="field mt-2" value={processOptions.category} onChange={e => setProcessOptions({ ...processOptions, category: e.target.value })}/></label>
-        {target === "library" && <label className="block text-xs text-[#767869]">Тип съдържание<select className="field mt-2" value={processOptions.contentType} onChange={e => setProcessOptions({ ...processOptions, contentType: e.target.value as KnowledgeContentType })}>{contentTypes.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>}
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-line bg-[#fbfaf0] py-4"><button type="button" className="btn-secondary" onClick={() => setProcessing(null)}>Отказ</button><button disabled={busy || ((target === "tool" || target === "news") && !processing.source_url)} className="btn-primary">{busy ? "Обработване..." : "Създай и подреди"}<ArrowRight size={14}/></button></div>
+        <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
+          <section className="rounded-2xl border border-line bg-[#f7f6ec] p-4 sm:p-5"><div className="mb-4 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#e9edda] text-[#52621c]">{processing.source_url ? <Link2 size={16}/> : <FileText size={16}/>}</span><div><p className="text-xs font-semibold text-[#34362d]">Съдържание</p><p className="text-[10px] text-[#85877a]">Можеш да редактираш преди запазване.</p></div></div><label className="text-xs text-[#67695d]">Заглавие<input required className="field mt-2" value={processing.title} onChange={e => setProcessing({ ...processing, title: e.target.value })}/></label><label className="mt-4 block text-xs text-[#67695d]">Описание<textarea rows={6} className="field mt-2 resize-y" value={processing.description} onChange={e => setProcessing({ ...processing, description: e.target.value })}/></label>{processing.source_url && <a href={processing.source_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#65763e]">Отвори източника <ExternalLink size={12}/></a>}</section>
+          <section className="rounded-2xl border border-line bg-white p-4 sm:p-5"><div className="mb-4"><p className="text-xs font-semibold text-[#34362d]">Подреждане</p><p className="mt-1 text-[10px] text-[#85877a]">Избери цел и точните данни за нея.</p></div><p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#85877a]">Къде да отиде?</p><div className="grid grid-cols-2 gap-2">{([{ id: "library", label: "AI Библиотека", icon: BookOpen }, { id: "tool", label: "AI инструмент", icon: Wrench }, { id: "news", label: "Новина", icon: Newspaper }, { id: "experiment", label: "Експеримент", icon: Beaker }] as const).map(option => { const Icon = option.icon; return <button type="button" key={option.id} onClick={() => chooseTarget(option.id)} className={`flex min-h-12 items-center gap-2 rounded-xl border p-3 text-left text-[11px] font-semibold transition ${target === option.id ? "border-[#75843b] bg-[#f0f4df] text-[#52621c]" : "border-[#e4e3d9] bg-white text-[#67685e] hover:border-[#c6c8b6]"}`}><Icon size={15}/>{option.label}</button>; })}</div><div className="mt-5 space-y-4">{(target === "tool" || target === "news") && !processing.source_url && <p className="rounded-xl border border-[#f0c9a8] bg-[#fff6ec] p-3 text-xs text-[#8a4d20]">За инструмент или новина е необходим уеб адрес.</p>}{target !== "experiment" && <CategoryPicker options={targetCategories} value={processOptions.category} onChange={category => setProcessOptions({ ...processOptions, category })}/>} {target === "experiment" && <div className="rounded-xl border border-[#dce1c8] bg-[#f5f7eb] p-3 text-xs leading-relaxed text-[#657044]">Експериментът ще бъде създаден в етап „Идея“. Категория не е необходима.</div>}{target === "library" && <label className="block text-xs text-[#767869]">Тип съдържание<select className="field mt-2" value={processOptions.contentType} onChange={e => setProcessOptions({ ...processOptions, contentType: e.target.value as KnowledgeContentType })}>{contentTypes.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>}</div></section>
+        </div>
+        {processingDuplicates.length > 0 && <DuplicateNotice items={processingDuplicates} action={useExisting}/>} 
+        <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-[10px] text-[#85877a]">Оригиналният входящ запис ще бъде отбелязан като обработен.</p><div className="flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setProcessing(null)}>Отказ</button><button disabled={busy || ((target === "tool" || target === "news") && !processing.source_url)} className="btn-primary">{busy ? "Обработване..." : "Създай и подреди"}<ArrowRight size={14}/></button></div></div>
       </form>}
-    </Drawer>
+    </Modal>
   </div>;
 }
 
@@ -156,3 +164,19 @@ function DuplicateNotice({ items, action }: { items: DuplicateCandidate[]; actio
 
 function entityLabel(type: EntityType) { return ({ knowledge: "Библиотека", tool: "Инструмент", news: "Новина", experiment: "Експеримент" } as const)[type]; }
 function safeHost(value: string) { try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return value; } }
+
+function categoriesForTarget(target: InboxTarget, knowledge: KnowledgeItem[], tools: AITool[], news: AINews[], managed: ContentCategory[]) {
+  const values = target === "tool"
+    ? [...managed.filter(item => item.applies_to.includes("tool")).map(item => item.name), ...tools.map(item => item.category), "Други"]
+    : target === "news"
+      ? [...news.map(item => item.category), "AI индустрия", "Модели", "Регулации", "Проучвания", "Продукти"]
+      : target === "library"
+        ? [...knowledge.filter(item => item.status !== "Входящи").map(item => item.category), "Източници", "Идеи", "Съвети и трикове", "За тестване", "Обучения"]
+        : [];
+  return Array.from(new Set(values.map(value => value?.trim()).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b, "bg-BG"));
+}
+
+function CategoryPicker({ options, value, onChange }: { options: string[]; value: string; onChange: (value: string) => void }) {
+  const isKnown = options.includes(value);
+  return <div className="space-y-2"><label className="block text-xs text-[#767869]">Категория<select className="field mt-2" value={isKnown ? value : "__custom"} onChange={event => onChange(event.target.value === "__custom" ? "" : event.target.value)}>{options.map(option => <option key={option}>{option}</option>)}<option value="__custom">+ Нова категория</option></select></label>{!isKnown && <input autoFocus required className="field" placeholder="Име на новата категория" value={value} onChange={event => onChange(event.target.value)}/>}</div>;
+}
