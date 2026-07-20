@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   Archive, CalendarDays, Columns3, Download, ExternalLink, FileText,
   FolderPlus, Grid2X2, History, Link2, List, LockKeyhole, MoreHorizontal, Paperclip,
@@ -8,7 +9,7 @@ import {
 } from "lucide-react";
 import {
   deleteEntityLink, deleteKnowledgeAttachment, deleteKnowledgeCollection, deleteSavedView, getEntityLinks,
-  getExperiments, getKnowledgeAttachments, getKnowledgeCollections, getKnowledgeHistory,
+  getExperimentSummaries, getKnowledgeAttachments, getKnowledgeCollections, getKnowledgeHistory,
   getKnowledgeItems, getKnowledgeStages, getNews, getSavedViews, getTools, openKnowledgeAttachment,
   saveEntityLink, saveKnowledgeCollection, saveKnowledgeItem, saveKnowledgeStage, saveSavedView, uploadKnowledgeAttachment,
 } from "@/lib/data";
@@ -54,6 +55,7 @@ export function LibraryView() {
   const [tools, setTools] = useState<AITool[]>([]);
   const [news, setNews] = useState<AINews[]>([]);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [catalogsLoaded, setCatalogsLoaded] = useState(false);
   const [attachments, setAttachments] = useState<KnowledgeAttachment[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [links, setLinks] = useState<EntityLink[]>([]);
@@ -77,15 +79,15 @@ export function LibraryView() {
   const [selected, setSelected] = useState<string[]>([]);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [undoArchive, setUndoArchive] = useState<KnowledgeItem[]>([]);
+  const deferredQuery = useDeferredValue(query);
 
   const refresh = async () => {
-    const [nextItems, nextCollections, nextStages, nextTools, nextNews, nextExperiments, nextSavedViews] = await Promise.all([
-      getKnowledgeItems(), getKnowledgeCollections(), getKnowledgeStages(), getTools(), getNews(), getExperiments(), getSavedViews(),
+    const [nextItems, nextCollections, nextStages, nextSavedViews] = await Promise.all([
+      getKnowledgeItems(), getKnowledgeCollections(), getKnowledgeStages(), getSavedViews(),
     ]);
     setItems(nextItems);
     setCollections(nextCollections);
     if (nextStages.length) setStages(nextStages);
-    setTools(nextTools); setNews(nextNews); setExperiments(nextExperiments);
     setSavedViews(nextSavedViews);
   };
 
@@ -103,8 +105,8 @@ export function LibraryView() {
       && (collection === "all" || (collection === "none" ? !item.collection_id : item.collection_id === collection))
       && (visibility === "all" || item.visibility === visibility)
       && (contentType === "all" || item.content_type === contentType)
-      && text.includes(query.toLowerCase());
-  }), [items, category, collection, visibility, contentType, query, showArchived]);
+      && text.includes(deferredQuery.toLowerCase());
+  }), [items, category, collection, visibility, contentType, deferredQuery, showArchived]);
 
   function openNew() {
     setEditing({ ...emptyItem, status: stages[0]?.name || "Ново" });
@@ -114,8 +116,10 @@ export function LibraryView() {
   async function openEdit(item: KnowledgeItem) {
     if (!canEdit) return;
     setEditing(item); setFiles([]); setNotice(""); setEditorOpen(true);
-    const [nextAttachments, nextHistory, nextLinks] = await Promise.all([getKnowledgeAttachments(item.id), getKnowledgeHistory(item.id), getEntityLinks("knowledge", item.id)]);
+    const catalogRequest = catalogsLoaded ? Promise.resolve(null) : Promise.all([getTools(), getNews(), getExperimentSummaries()]);
+    const [nextAttachments, nextHistory, nextLinks, catalogs] = await Promise.all([getKnowledgeAttachments(item.id), getKnowledgeHistory(item.id), getEntityLinks("knowledge", item.id), catalogRequest]);
     setAttachments(nextAttachments); setHistory(nextHistory); setLinks(nextLinks);
+    if (catalogs) { setTools(catalogs[0]); setNews(catalogs[1]); setExperiments(catalogs[2]); setCatalogsLoaded(true); }
   }
 
   async function submit(e: React.FormEvent) {
@@ -125,7 +129,7 @@ export function LibraryView() {
       const saved = await saveKnowledgeItem(editing.id ? editing : { ...editing, id: undefined });
       if (!saved) throw new Error("Липсва запис");
       for (const file of files) await uploadKnowledgeAttachment(saved.id, file);
-      await refresh();
+      setItems(current => editing.id ? current.map(item => item.id === editing.id ? saved : item) : [saved, ...current]);
       setEditorOpen(false); setFiles([]);
     } catch {
       setNotice("Промяната не е запазена. Изпълнете library-enhancements.sql и опитайте отново.");
@@ -144,8 +148,9 @@ export function LibraryView() {
   async function toggleArchive(item: Partial<KnowledgeItem>) {
     if (!item.id) return;
     try {
-      await saveKnowledgeItem({ ...item, archived_at: item.archived_at ? null : new Date().toISOString() });
-      await refresh(); setEditorOpen(false);
+      const saved = await saveKnowledgeItem({ ...item, archived_at: item.archived_at ? null : new Date().toISOString() });
+      if (saved) setItems(current => current.map(entry => entry.id === saved.id ? saved : entry));
+      setEditorOpen(false);
     } catch { setNotice("Архивирането не беше успешно."); }
   }
 
@@ -191,16 +196,18 @@ export function LibraryView() {
 
   async function bulkMove(status: string) {
     if (!status) return;
-    setBusy(true); try { await Promise.all(selected.map(id => { const item = items.find(entry => entry.id === id); return item ? saveKnowledgeItem({...item,status}) : Promise.resolve(); })); await refresh(); setSelected([]); setNotice("Избраните карти са преместени."); } catch { setNotice("Масовата промяна не беше записана."); } finally { setBusy(false); }
+    setBusy(true); try { await Promise.all(selected.map(id => { const item = items.find(entry => entry.id === id); return item ? saveKnowledgeItem({...item,status}) : Promise.resolve(); })); setItems(current => current.map(item => selected.includes(item.id) ? {...item,status} : item)); setSelected([]); setNotice("Избраните карти са преместени."); } catch { setNotice("Масовата промяна не беше записана."); } finally { setBusy(false); }
   }
 
   async function bulkArchive() {
     const targets = items.filter(item => selected.includes(item.id));
-    setBusy(true); try { await Promise.all(targets.map(item => saveKnowledgeItem({...item,archived_at:new Date().toISOString()}))); setUndoArchive(targets); await refresh(); setSelected([]); setNotice("Избраните карти са архивирани."); } catch { setNotice("Картите не бяха архивирани."); } finally { setBusy(false); }
+    const archivedAt = new Date().toISOString();
+    setBusy(true); try { await Promise.all(targets.map(item => saveKnowledgeItem({...item,archived_at:archivedAt}))); setUndoArchive(targets); setItems(current => current.map(item => selected.includes(item.id) ? {...item,archived_at:archivedAt} : item)); setSelected([]); setNotice("Избраните карти са архивирани."); } catch { setNotice("Картите не бяха архивирани."); } finally { setBusy(false); }
   }
 
   async function restoreLastArchive() {
-    setBusy(true); try { await Promise.all(undoArchive.map(item => saveKnowledgeItem({...item,archived_at:null}))); setUndoArchive([]); await refresh(); setNotice("Архивирането е отменено."); } catch { setNotice("Картите не бяха възстановени."); } finally { setBusy(false); }
+    const ids = new Set(undoArchive.map(item => item.id));
+    setBusy(true); try { await Promise.all(undoArchive.map(item => saveKnowledgeItem({...item,archived_at:null}))); setItems(current => current.map(item => ids.has(item.id) ? {...item,archived_at:null} : item)); setUndoArchive([]); setNotice("Архивирането е отменено."); } catch { setNotice("Картите не бяха възстановени."); } finally { setBusy(false); }
   }
 
   const entityOptions = useMemo(() => [
@@ -298,7 +305,7 @@ export function LibraryView() {
 function KnowledgeCard({ item, collection, canEdit, selected, onSelect, onEdit }: { item: KnowledgeItem; collection?: KnowledgeCollection; canEdit: boolean; selected: boolean; onSelect: () => void; onEdit: () => void }) {
   return <article draggable={canEdit} onDragStart={e => e.dataTransfer.setData("text/plain", item.id)} onClick={onEdit} className={`rounded-xl border bg-white p-4 shadow-[0_3px_12px_rgba(55,56,42,.035)] transition hover:-translate-y-0.5 ${selected ? "border-[#52621c] ring-2 ring-[#52621c]/10" : "border-[#e4e3d9] hover:border-[#c6c8b6]"} ${canEdit ? "cursor-grab active:cursor-grabbing" : ""}`}>
     <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2">{canEdit && <input aria-label={`Избери ${item.title}`} type="checkbox" checked={selected} onClick={event => event.stopPropagation()} onChange={onSelect} className="h-4 w-4 accent-[#52621c]"/>}<span className="truncate rounded bg-[#efeee4] px-2 py-1 text-[7px] font-bold uppercase text-[#46483b]">{item.category}</span><span className="shrink-0 rounded bg-[#f2ecfa] px-2 py-1 text-[7px] font-semibold text-[#67558d]">{contentTypeLabel(item.content_type)}</span></div><span className={`rounded-full px-2 py-1 text-[7px] font-semibold ${item.priority === "Висок" ? "bg-[#ffdad6] text-[#ba1a1a]" : item.priority === "Нисък" ? "bg-[#e9edda] text-[#52621c]" : "bg-[#fff0c7] text-[#765b20]"}`}>{item.priority}</span></div>
-    <h3 className="mt-3 text-[11px] font-semibold leading-relaxed text-[#1b1c16]">{item.title}</h3><p className="mt-1.5 line-clamp-2 text-[9px] leading-relaxed text-[#767869]">{item.description}</p>
+    <Link href={`/library/${item.id}`} onClick={event => event.stopPropagation()} className="mt-3 block text-[11px] font-semibold leading-relaxed text-[#1b1c16] hover:text-[#65763e]">{item.title}</Link><p className="mt-1.5 line-clamp-2 text-[9px] leading-relaxed text-[#767869]">{item.description}</p>
     {collection && <p className="mt-3 flex items-center gap-1.5 text-[8px] font-medium" style={{color:collection.color}}><span className="h-2 w-2 rounded-full" style={{backgroundColor:collection.color}}/>{collection.name}</p>}
     <div className="mt-3 flex flex-wrap gap-1">{item.tags.slice(0,3).map(tag => <span key={tag} className="rounded bg-[#f5f4ea] px-1.5 py-1 text-[7px] text-[#767869]">{tag}</span>)}</div>
     <div className="mt-3 flex items-center justify-between border-t border-[#efeee4] pt-3 text-[8px] text-[#9a9b8d]"><span>{item.visibility === "personal" ? <LockKeyhole size={10} className="mr-1 inline"/> : <Users size={10} className="mr-1 inline"/>}{item.visibility === "personal" ? "Лична" : "Споделена"}</span><span><Star size={9} className="mr-1 inline text-[#a16b24]" fill="currentColor"/>{item.rating}</span><span><CalendarDays size={10} className="mr-1 inline"/>{new Date(item.created_at).toLocaleDateString("bg-BG",{day:"2-digit",month:"short"})}</span>{item.source_url && <a href={item.source_url} target="_blank" onClick={e => e.stopPropagation()} className="text-[#52621c]" title="Източник"><ExternalLink size={11}/></a>}</div>
@@ -306,7 +313,7 @@ function KnowledgeCard({ item, collection, canEdit, selected, onSelect, onEdit }
 }
 
 function KnowledgeListRow({ item, canEdit, selected, onSelect, onEdit }: { item: KnowledgeItem; canEdit: boolean; selected: boolean; onSelect: () => void; onEdit: () => void }) {
-  return <div onClick={onEdit} className={`grid gap-2 border-b border-[#efeee4] px-4 py-3 last:border-0 md:grid-cols-[32px_1.5fr_.65fr_.7fr_.6fr_90px] md:items-center ${canEdit ? "cursor-pointer hover:bg-[#faf9f3]" : ""}`}><span>{canEdit && <input aria-label={`Избери ${item.title}`} type="checkbox" checked={selected} onClick={event => event.stopPropagation()} onChange={onSelect} className="h-4 w-4 accent-[#52621c]"/>}</span><div className="min-w-0"><p className="truncate text-sm font-semibold">{item.title}</p><p className="mt-0.5 truncate text-[10px] text-[#767869]">{item.category} · {item.description}</p></div><span className="w-fit rounded bg-[#f2ecfa] px-2 py-1 text-[9px] font-semibold text-[#67558d]">{contentTypeLabel(item.content_type)}</span><span className="text-xs text-[#67685e]">{item.status}</span><span className="text-xs text-[#67685e]">{item.priority}</span><span className="text-xs font-semibold text-[#52621c]">{item.rating}/5</span></div>;
+  return <div onClick={onEdit} className={`grid gap-2 border-b border-[#efeee4] px-4 py-3 last:border-0 md:grid-cols-[32px_1.5fr_.65fr_.7fr_.6fr_90px] md:items-center ${canEdit ? "cursor-pointer hover:bg-[#faf9f3]" : ""}`}><span>{canEdit && <input aria-label={`Избери ${item.title}`} type="checkbox" checked={selected} onClick={event => event.stopPropagation()} onChange={onSelect} className="h-4 w-4 accent-[#52621c]"/>}</span><div className="min-w-0"><Link href={`/library/${item.id}`} onClick={event => event.stopPropagation()} className="block truncate text-sm font-semibold hover:text-[#65763e]">{item.title}</Link><p className="mt-0.5 truncate text-[10px] text-[#767869]">{item.category} · {item.description}</p></div><span className="w-fit rounded bg-[#f2ecfa] px-2 py-1 text-[9px] font-semibold text-[#67558d]">{contentTypeLabel(item.content_type)}</span><span className="text-xs text-[#67685e]">{item.status}</span><span className="text-xs text-[#67685e]">{item.priority}</span><span className="text-xs font-semibold text-[#52621c]">{item.rating}/5</span></div>;
 }
 
 function contentTypeLabel(type?: KnowledgeContentType) { return contentTypeOptions.find(item => item.value === (type || "resource"))?.label || "Ресурс"; }
