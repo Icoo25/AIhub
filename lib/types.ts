@@ -24,10 +24,11 @@ export interface AITool {
   last_reviewed_at?: string | null;
   notes?: string;
   updated_at?: string;
+  source_id?: string | null;
 }
 export type CategoryEntityType = "tool" | "news" | "knowledge" | "experiment";
 export interface ContentCategory { id: string; name: string; description: string; color: string; applies_to: CategoryEntityType[]; active: boolean; position: number; created_at: string; updated_at?: string; }
-export interface AINews { id: string; title: string; summary: string; source_url: string; category: string; published_date: string; created_at: string; }
+export interface AINews { id: string; title: string; summary: string; source_url: string; category: string; published_date: string; created_at: string; source_id?: string | null; }
 export type ExperimentStatus = "Идея" | "Планиран" | "В процес" | "Завършен" | "За внедряване" | "Отхвърлен";
 export interface Experiment {
   id: string;
@@ -47,10 +48,14 @@ export interface Experiment {
   comparison_prompt?: string;
   comparison_result?: string;
   updated_at?: string;
+  source_id?: string | null;
 }
 export type KnowledgeStatus = "Ново" | "За преглед" | "За тестване" | "Полезно" | "Архив";
 export type KnowledgeContentType = "resource" | "source" | "note" | "tool" | "news" | "experiment" | "tip" | "idea" | "prompt" | "course" | "video";
-export interface KnowledgeItem { id: string; title: string; description: string; category: string; source_url: string; status: KnowledgeStatus | string; priority: "Нисък" | "Среден" | "Висок"; rating: number; tags: string[]; notes: string; created_at: string; collection_id?: string | null; visibility?: "shared" | "personal"; owner_id?: string | null; archived_at?: string | null; content_type?: KnowledgeContentType; assigned_to?: string | null; due_date?: string | null; pinned?: boolean; read_state?: "unread" | "reading" | "done"; metadata?: Record<string, unknown>; }
+export interface KnowledgeItem { id: string; title: string; description: string; category: string; source_url: string; status: KnowledgeStatus | string; priority: "Нисък" | "Среден" | "Висок"; rating: number; tags: string[]; notes: string; created_at: string; collection_id?: string | null; visibility?: "shared" | "personal"; owner_id?: string | null; archived_at?: string | null; content_type?: KnowledgeContentType; assigned_to?: string | null; due_date?: string | null; pinned?: boolean; read_state?: "unread" | "reading" | "done"; metadata?: Record<string, unknown>; source_id?: string | null; }
+export type ContentSourceType = "Сайт" | "Блог" | "YouTube" | "TikTok" | "Бюлетин" | "RSS" | "Вътрешен";
+export type ContentSourceStatus = "Активен" | "Пауза" | "Архивиран";
+export interface ContentSource { id: string; name: string; url: string; handle: string; source_type: ContentSourceType; category: string; description: string; reliability: number; status: ContentSourceStatus; last_checked_at?: string | null; created_at: string; updated_at?: string; content_count?: number; }
 export interface KnowledgeCollection { id: string; name: string; description: string; color: string; created_by?: string | null; created_at: string; }
 export interface KnowledgeStage { id: string; name: string; color: string; position: number; created_at: string; }
 export interface KnowledgeAttachment { id: string; item_id: string; file_name: string; file_path: string; mime_type: string; file_size: number; created_at: string; }
