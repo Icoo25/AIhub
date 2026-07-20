@@ -14,6 +14,7 @@ import { SourceLogo } from "./source-logo";
 
 const blank: Partial<ContentSource> = { name: "", url: "", handle: "", source_type: "Сайт", category: "Общи", description: "", reliability: 3, status: "Активен", last_checked_at: null };
 const sourceTypes: ContentSourceType[] = ["Сайт", "Блог", "YouTube", "TikTok", "Бюлетин", "RSS", "Вътрешен"];
+const defaultSourceCategories = ["Общи", "AI новини", "AI инструменти", "Изследвания", "Обучение", "Съвети и трикове", "Неща за тестване", "Автоматизация", "Разработка", "Дизайн", "Маркетинг", "Видео и съдържание", "Бизнес"];
 
 export function SourcesView() {
   const { role } = useAuthProfile();
@@ -32,7 +33,7 @@ export function SourcesView() {
   useEffect(() => { load(); }, []);
 
   const filtered = useMemo(() => items.filter(item => (type === "Всички типове" || item.source_type === type) && (status === "Всички" || (status === "Активни" ? item.status === "Активен" : item.status === status)) && `${item.name} ${item.handle} ${item.category} ${item.description}`.toLocaleLowerCase("bg-BG").includes(deferredQuery.toLocaleLowerCase("bg-BG"))), [items, type, status, deferredQuery]);
-  const categories = Array.from(new Set(items.map(item => item.category).filter(Boolean))).sort();
+  const categories = Array.from(new Set([...defaultSourceCategories, ...items.map(item => item.category).filter(Boolean)])).sort((a, b) => a.localeCompare(b, "bg"));
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
