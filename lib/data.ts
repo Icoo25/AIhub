@@ -1,6 +1,7 @@
 import { createClient, hasSupabaseConfig } from "./supabase/client";
 import { demoExperiments, demoKnowledge, demoNews, demoTools } from "./demo-data";
 import type { ActivityEntry, AINews, AITool, ContentCategory, ContentSource, EntityLink, EntityRelation, EntityType, Experiment, KnowledgeAttachment, KnowledgeCollection, KnowledgeContentType, KnowledgeHistory, KnowledgeItem, KnowledgeStage, SavedView, TeamInvite, UserProfile } from "./types";
+import { detectSourceType, extractSourceHandle } from "./sources";
 
 export const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !hasSupabaseConfig;
 
@@ -95,7 +96,7 @@ export async function deleteEntityLink(id: string) {
   clearDataCache("links-*");
 }
 
-export type InboxTarget = "library" | "tool" | "news" | "experiment";
+export type InboxTarget = "library" | "tool" | "news" | "experiment" | "source";
 export async function attachInboxToExisting(item: KnowledgeItem, targetType: EntityType, targetId: string) {
   await saveEntityLink("knowledge", item.id, targetType, targetId, "related");
   return saveKnowledgeItem({
@@ -105,8 +106,15 @@ export async function attachInboxToExisting(item: KnowledgeItem, targetType: Ent
     metadata: { ...(item.metadata || {}), processed_to: { type: targetType, id: targetId }, duplicate: true },
   });
 }
-export async function convertInboxItem(item: KnowledgeItem, target: InboxTarget, options: { category: string; contentType: KnowledgeContentType }) {
+export async function convertInboxItem(item: KnowledgeItem, target: InboxTarget, options: { category: string; contentType: KnowledgeContentType; reliability?: number }) {
   if (target === "library") return saveKnowledgeItem({ ...item, category: options.category, content_type: options.contentType, status: "За преглед", read_state: "reading" });
+
+  if (target === "source") {
+    if (!item.source_url) throw new Error("За източник е необходим уеб адрес.");
+    const existing = item.source_id ? await getSource(item.source_id) : null;
+    const saved = existing || await saveSource({ name: item.title, url: item.source_url, handle: extractSourceHandle(item.source_url), source_type: detectSourceType(item.source_url), category: options.category || "Общи", description: item.description, reliability: options.reliability || 3, status: "Активен", last_checked_at: new Date().toISOString().slice(0, 10) });
+    return saveKnowledgeItem({ ...item, source_id: saved.id, status: "Обработено", archived_at: new Date().toISOString(), metadata: { ...(item.metadata || {}), processed_to: { type: "source", id: saved.id } } });
+  }
 
   let targetId = "";
   let targetType: EntityType;

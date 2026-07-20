@@ -1,5 +1,7 @@
 import type { ContentSource, ContentSourceType } from "./types";
 
+export const defaultSourceCategories = ["Общи", "AI новини", "AI инструменти", "Изследвания", "Обучение", "Съвети и трикове", "Неща за тестване", "Автоматизация", "Разработка", "Дизайн", "Маркетинг", "Видео и съдържание", "Бизнес"];
+
 export function normalizedHost(value: string) {
   try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); }
   catch { return ""; }
