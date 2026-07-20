@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ExternalLink, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { deleteSource, getSources, saveSource } from "@/lib/data";
-import { detectSourceType, extractSourceHandle } from "@/lib/sources";
+import { defaultSourceCategories, detectSourceType, extractSourceHandle } from "@/lib/sources";
 import type { ContentSource, ContentSourceStatus, ContentSourceType } from "@/lib/types";
 import { useAuthProfile } from "@/lib/auth-context";
 import { canEditContent } from "@/lib/permissions";
@@ -14,7 +14,6 @@ import { SourceLogo } from "./source-logo";
 
 const blank: Partial<ContentSource> = { name: "", url: "", handle: "", source_type: "Сайт", category: "Общи", description: "", reliability: 3, status: "Активен", last_checked_at: null };
 const sourceTypes: ContentSourceType[] = ["Сайт", "Блог", "YouTube", "TikTok", "Бюлетин", "RSS", "Вътрешен"];
-const defaultSourceCategories = ["Общи", "AI новини", "AI инструменти", "Изследвания", "Обучение", "Съвети и трикове", "Неща за тестване", "Автоматизация", "Разработка", "Дизайн", "Маркетинг", "Видео и съдържание", "Бизнес"];
 
 export function SourcesView() {
   const { role } = useAuthProfile();
