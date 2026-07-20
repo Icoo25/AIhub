@@ -91,6 +91,15 @@ export async function deleteEntityLink(id: string) {
 }
 
 export type InboxTarget = "library" | "tool" | "news" | "experiment";
+export async function attachInboxToExisting(item: KnowledgeItem, targetType: EntityType, targetId: string) {
+  await saveEntityLink("knowledge", item.id, targetType, targetId, "related");
+  return saveKnowledgeItem({
+    ...item,
+    status: "Обработено",
+    archived_at: new Date().toISOString(),
+    metadata: { ...(item.metadata || {}), processed_to: { type: targetType, id: targetId }, duplicate: true },
+  });
+}
 export async function convertInboxItem(item: KnowledgeItem, target: InboxTarget, options: { category: string; contentType: KnowledgeContentType }) {
   if (target === "library") return saveKnowledgeItem({ ...item, category: options.category, content_type: options.contentType, status: "За преглед", read_state: "reading" });
 
