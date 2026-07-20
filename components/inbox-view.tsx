@@ -107,7 +107,7 @@ export function InboxView() {
     try {
       await convertInboxItem(processing, target, processOptions);
       setItems(current => current.filter(item => item.id !== processing.id)); setSelected(current => current.filter(id => id !== processing.id));
-      setNotice(target === "library" ? "Записът е подреден в AI Библиотеката." : `Създаден е нов ${target === "tool" ? "инструмент" : target === "news" ? "новинарски запис" : target === "source" ? "източник" : "експеримент"}.`); setProcessing(null); await load();
+      setNotice(target === "library" ? "Записът е подреден в AI Библиотеката." : target === "source" ? "Източникът е създаден или свързан, а записът е преместен в AI Библиотеката." : `Създаден е нов ${target === "tool" ? "инструмент" : target === "news" ? "новинарски запис" : "експеримент"}.`); setProcessing(null); await load();
     } catch (error) { setNotice(error instanceof Error ? error.message : "Записът не беше обработен."); }
     finally { setBusy(false); }
   }
