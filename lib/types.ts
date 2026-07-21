@@ -56,6 +56,10 @@ export interface KnowledgeItem { id: string; title: string; description: string;
 export type ContentSourceType = "Сайт" | "Блог" | "YouTube" | "TikTok" | "Бюлетин" | "RSS" | "Вътрешен";
 export type ContentSourceStatus = "Активен" | "Пауза" | "Архивиран";
 export interface ContentSource { id: string; name: string; url: string; handle: string; source_type: ContentSourceType; category: string; description: string; reliability: number; status: ContentSourceStatus; last_checked_at?: string | null; created_at: string; updated_at?: string; content_count?: number; }
+export type CompetitorPriority = "Нисък" | "Среден" | "Висок" | "Критичен";
+export type CompetitorStatus = "Активен" | "Пауза" | "Архивиран";
+export interface Competitor { id: string; name: string; website_url: string; logo_url: string; industry: string; description: string; priority: CompetitorPriority; status: CompetitorStatus; notes: string; created_at: string; updated_at?: string; source_count?: number; }
+export interface CompetitorSource { id: string; competitor_id: string; source_id: string; channel_label: string; is_primary: boolean; created_at: string; source?: ContentSource; }
 export interface KnowledgeCollection { id: string; name: string; description: string; color: string; created_by?: string | null; created_at: string; }
 export interface KnowledgeStage { id: string; name: string; color: string; position: number; created_at: string; }
 export interface KnowledgeAttachment { id: string; item_id: string; file_name: string; file_path: string; mime_type: string; file_size: number; created_at: string; }

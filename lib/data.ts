@@ -1,6 +1,6 @@
 import { createClient, hasSupabaseConfig } from "./supabase/client";
 import { demoExperiments, demoKnowledge, demoNews, demoTools } from "./demo-data";
-import type { ActivityEntry, AINews, AITool, ContentCategory, ContentSource, EntityLink, EntityRelation, EntityType, Experiment, KnowledgeAttachment, KnowledgeCollection, KnowledgeContentType, KnowledgeHistory, KnowledgeItem, KnowledgeStage, SavedView, TeamInvite, UserProfile } from "./types";
+import type { ActivityEntry, AINews, AITool, Competitor, CompetitorSource, ContentCategory, ContentSource, EntityLink, EntityRelation, EntityType, Experiment, KnowledgeAttachment, KnowledgeCollection, KnowledgeContentType, KnowledgeHistory, KnowledgeItem, KnowledgeStage, SavedView, TeamInvite, UserProfile } from "./types";
 import { detectSourceType, extractSourceHandle } from "./sources";
 
 export const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !hasSupabaseConfig;
@@ -43,6 +43,69 @@ export async function getSource(id: string): Promise<ContentSource | null> { con
 export async function saveSource(item: Partial<ContentSource>): Promise<ContentSource> { if (isDemo) return { id: item.id || crypto.randomUUID(), name: item.name || "Нов източник", url: item.url || "", handle: item.handle || "", source_type: item.source_type || "Сайт", category: item.category || "Общи", description: item.description || "", reliability: item.reliability || 3, status: item.status || "Активен", last_checked_at: item.last_checked_at || null, created_at: new Date().toISOString() }; const db = createClient()!; const payload = { ...item, updated_at: new Date().toISOString() }; const query = item.id ? db.from("content_sources").update(payload).eq("id", item.id) : db.from("content_sources").insert(payload); const { data, error } = await query.select("*").single(); if (error) throw error; let matcher = data.handle || ""; try { if (!matcher) matcher = new URL(data.url).hostname.replace(/^www\./, ""); } catch {} if (matcher) { const pattern = `%${matcher}%`; await Promise.all([db.from("ai_tools").update({ source_id: data.id }).is("source_id", null).ilike("website_url", pattern), db.from("ai_news").update({ source_id: data.id }).is("source_id", null).ilike("source_url", pattern), db.from("knowledge_items").update({ source_id: data.id }).is("source_id", null).ilike("source_url", pattern)]); } clearDataCache("content-sources", "tools", "news", "knowledge"); return data as ContentSource; }
 export async function deleteSource(id: string) { if (isDemo) return; const { error } = await createClient()!.from("content_sources").delete().eq("id", id); if (error) throw error; clearDataCache("content-sources", "tools", "news", "knowledge", "experiments"); }
 export async function getSourceContent(sourceId: string) { const [tools, news, knowledge, experiments] = await Promise.all([getTools(), getNews(), getKnowledgeItems(), getExperiments()]); return { tools: tools.filter(item => item.source_id === sourceId), news: news.filter(item => item.source_id === sourceId), knowledge: knowledge.filter(item => item.source_id === sourceId), experiments: experiments.filter(item => item.source_id === sourceId) }; }
+
+export async function getCompetitors(): Promise<Competitor[]> {
+  if (isDemo) return [];
+  return cached("competitors", async () => {
+    const db = createClient()!;
+    const [competitors, links] = await Promise.all([
+      db.from("competitors").select("*").order("priority", { ascending: false }).order("name"),
+      db.from("competitor_sources").select("competitor_id"),
+    ]);
+    if (competitors.error) throw competitors.error;
+    const counts = new Map<string, number>();
+    for (const link of links.data || []) counts.set(link.competitor_id, (counts.get(link.competitor_id) || 0) + 1);
+    return (competitors.data || []).map(item => ({ ...item, source_count: counts.get(item.id) || 0 })) as Competitor[];
+  }, 30_000);
+}
+
+export async function getCompetitor(id: string) { return (await getCompetitors()).find(item => item.id === id) || null; }
+
+export async function saveCompetitor(item: Partial<Competitor>): Promise<Competitor> {
+  if (isDemo) return { id: item.id || crypto.randomUUID(), name: item.name || "Нов конкурент", website_url: item.website_url || "", logo_url: item.logo_url || "", industry: item.industry || "Общи", description: item.description || "", priority: item.priority || "Среден", status: item.status || "Активен", notes: item.notes || "", created_at: new Date().toISOString(), source_count: 0 };
+  const db = createClient()!;
+  const payload = { name: item.name, website_url: item.website_url || "", logo_url: item.logo_url || "", industry: item.industry || "Общи", description: item.description || "", priority: item.priority || "Среден", status: item.status || "Активен", notes: item.notes || "", updated_at: new Date().toISOString() };
+  const query = item.id ? db.from("competitors").update(payload).eq("id", item.id) : db.from("competitors").insert(payload);
+  const { data, error } = await query.select("*").single();
+  if (error) throw error;
+  clearDataCache("competitors");
+  return data as Competitor;
+}
+
+export async function deleteCompetitor(id: string) {
+  if (isDemo) return;
+  const { error } = await createClient()!.from("competitors").delete().eq("id", id);
+  if (error) throw error;
+  clearDataCache("competitors", `competitor-sources-${id}`);
+}
+
+export async function getCompetitorSources(competitorId: string): Promise<CompetitorSource[]> {
+  if (isDemo) return [];
+  return cached(`competitor-sources-${competitorId}`, async () => {
+    const db = createClient()!;
+    const { data, error } = await db.from("competitor_sources").select("*").eq("competitor_id", competitorId).order("is_primary", { ascending: false }).order("created_at");
+    if (error) throw error;
+    const sources = await getSources();
+    return (data || []).map(link => ({ ...link, source: sources.find(source => source.id === link.source_id) })) as CompetitorSource[];
+  }, 30_000);
+}
+
+export async function linkCompetitorSource(competitorId: string, sourceId: string, channelLabel = "", isPrimary = false) {
+  if (isDemo) return { id: crypto.randomUUID(), competitor_id: competitorId, source_id: sourceId, channel_label: channelLabel, is_primary: isPrimary, created_at: new Date().toISOString() } as CompetitorSource;
+  const db = createClient()!;
+  if (isPrimary) await db.from("competitor_sources").update({ is_primary: false }).eq("competitor_id", competitorId);
+  const { data, error } = await db.from("competitor_sources").upsert({ competitor_id: competitorId, source_id: sourceId, channel_label: channelLabel, is_primary: isPrimary }, { onConflict: "competitor_id,source_id" }).select("*").single();
+  if (error) throw error;
+  clearDataCache("competitors", `competitor-sources-${competitorId}`);
+  return data as CompetitorSource;
+}
+
+export async function unlinkCompetitorSource(competitorId: string, sourceId: string) {
+  if (isDemo) return;
+  const { error } = await createClient()!.from("competitor_sources").delete().eq("competitor_id", competitorId).eq("source_id", sourceId);
+  if (error) throw error;
+  clearDataCache("competitors", `competitor-sources-${competitorId}`);
+}
 export async function saveNews(item: Partial<AINews>): Promise<AINews | undefined> { if (isDemo) return item as AINews; const db = createClient()!; const query = item.id ? db.from("ai_news").update(item).eq("id", item.id) : db.from("ai_news").insert(item); const { data, error } = await query.select("*").single(); if (error) throw error; clearDataCache("news"); return data; }
 export async function deleteNews(id: string) { if (isDemo) return; const { error } = await createClient()!.from("ai_news").delete().eq("id", id); if (error) throw error; clearDataCache("news", "links-*"); }
 export async function saveExperiment(item: Partial<Experiment>): Promise<Experiment | undefined> { if (isDemo) return item as Experiment; const db = createClient()!; const payload = { ...item, updated_at: new Date().toISOString() }; const query = item.id ? db.from("experiments").update(payload).eq("id", item.id) : db.from("experiments").insert(payload); const { data, error } = await query.select("*").single(); if (error) throw error; clearDataCache("experiments", "experiments-summary"); return data; }
