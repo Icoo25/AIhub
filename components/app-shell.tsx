@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Beaker, Bell, BookOpen, Bot, ChevronDown, Compass, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Rss, Search, Settings, Users, X } from "lucide-react";
+import { Beaker, Bell, BookOpen, Bot, ChevronDown, Compass, Crosshair, Inbox, LayoutDashboard, LogOut, Menu, Newspaper, Plus, Rss, Search, Settings, Users, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { clearDataCache, isDemo } from "@/lib/data";
@@ -15,6 +15,7 @@ const navigation = [
   { href: "/", label: "Общ преглед", icon: LayoutDashboard },
   { href: "/inbox", label: "Входящи", icon: Inbox },
   { href: "/sources", label: "Източници", icon: Rss },
+  { href: "/competitors", label: "Content Spy", icon: Crosshair },
   { href: "/library", label: "AI библиотека", icon: BookOpen },
   { href: "/tools", label: "AI инструменти", icon: Bot },
   { href: "/news", label: "Инфо поток", icon: Newspaper },
